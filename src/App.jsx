@@ -10,7 +10,7 @@ function App() {
   const [courses, setCourses] = useState([]);
   const [name, setName] = useState("IP-18KPROGEG; IP-18MIAE; IP-18cAB2G; IP-18cSZÁMEA2G; IP-18cSZÁMEA2E; IP-18cAB2E; IP-18KVPYEG; IP-24KVSZPDMEG; IP-18cVSZG");
   const [semester, setSemester] = useState("2025-2026-1");
-  const API_URL = import.meta.env.VITE_API_URL;
+
 
   const fetchData = async () => {
     if (!name) {
@@ -22,7 +22,7 @@ function App() {
     const codes = name.split(";").map(code => code.trim());
     let allCourses = [];
     for (const code of codes) {
-      const response = await fetch(`${API_URL}/api/get_data?name=${encodeURIComponent(code)}&semester=${encodeURIComponent(semester)}`);
+      const response = await fetch(`/api/get_data?name=${encodeURIComponent(code)}&semester=${encodeURIComponent(semester)}`);
       const data = await response.json();
       console.log(data);
       if (data.error) {
