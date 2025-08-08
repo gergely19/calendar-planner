@@ -1,0 +1,150 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    margin: 0;
+    padding: 0;
+}
+
+header {
+    background-color: #005f73;
+    color: white;
+    padding: 20px;
+    text-align: center;
+}
+
+header h1 {
+    margin: 0;
+}
+
+.color-box {
+    width: 20px;
+    height: 20px;
+    display: inline-block;
+    margin-right: 10px;
+}
+
+.container {
+    width: 90vw;
+    max-width: 90vw;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+#root {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 20px;
+    box-sizing: border-box;
+}
+label {
+    font-size: 1.1em;
+    display: block;
+    margin-bottom: 5px;
+    color: black;
+}
+
+input[type="text"] {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
+
+button {
+    background-color: #005f73;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 1em;
+}
+
+button:hover {
+    background-color: #0a9396;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+th,
+td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+th {
+    background-color: #005f73;
+    color: white;
+}
+
+tr:hover {
+    background-color: #f1f1f1;
+}
+
+.alert {
+    color: red;
+    font-weight: bold;
+}
+
+#calendar td {
+    text-align: center;
+    vertical-align: middle;
+    border: 1px solid #ddd;
+}
+
+#calendar td[colspan] {
+    font-weight: bold;
+    background-color: #ADD8E6;
+    border: none; /* Cellaegyesítésekhez */
+}
+
+#calendar td[style*="background-color"] {
+    border: none; /* Színezett cellák vonalai eltüntetése */
+}
+.calendar-cell {
+    position: relative;
+    height: 50px;
+    vertical-align: top;
+    border: 1px solid #ddd;
+}
+
+.event-container {
+    display: flex;
+    flex-direction: row; /* Az események egymás mellett jelennek meg */
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.event {
+    background-color: #ADD8E6; /* Alapértelmezett szín */
+    margin: 2px;
+    padding: 5px;
+    border-radius: 5px;
+    text-align: center;
+    color: #fff;
+    font-size: 12px;
+    flex: 1; /* Az események mérete arányosan oszlik el */
+    overflow: hidden;
+}
+
+/* Cella tartalom kiterjesztése */
+.calendar-cell > .event-container {
+    position: relative;
+    height: 100%;
+}
+
+.event + .event {
+    margin-left: 5px; /* Biztosítja, hogy az események között legyen egy kis térköz */
+}
