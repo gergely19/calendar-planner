@@ -22,7 +22,7 @@ function App() {
     const codes = name.split(";").map(code => code.trim());
     let allCourses = [];
     for (const code of codes) {
-      const response = await fetch(`/api/get_data?name=${encodeURIComponent(code)}&semester=${encodeURIComponent(semester)}`);
+      const response = await fetch(`/api/get_data.php?name=${encodeURIComponent(code)}&semester=${encodeURIComponent(semester)}`);
       const data = await response.json();
       console.log(data);
       if (data.error) {
