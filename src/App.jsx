@@ -3,12 +3,12 @@ import Header from "./components/Header";
 import QueryForm from "./components/QueryForm";
 import ColorMapping from "./components/ColorMapping";
 import Calendar from "./components/Calendar";
-import ResultTable from "./components/ResultTable";
 import "./indexstyle.css";
 
 function App() {
   const [courses, setCourses] = useState([]);
-  const [name, setName] = useState("IP-18KPROGEG; IP-18MIAE; IP-18cAB2G; IP-18cSZÁMEA2G; IP-18cSZÁMEA2E; IP-18cAB2E; IP-18KVPYEG; IP-24KVSZPDMEG; IP-18cVSZG");
+  const [errorCodes, setErrorCodes] = useState([]);
+  const [name, setName] = useState("IP-18KPROGEG; IP-18MIAE; IP-18cAB2G; IP-18cSZÁMEA2G;  IP-18KVPYEG; IP-24KVSZPDMEG; IP-18cVSZG"); //IP-18cAB2E; IP-18cSZÁMEA2E;
   const [semester, setSemester] = useState("2025-2026-1");
 
 
@@ -21,17 +21,22 @@ function App() {
     // Feltételezzük, hogy a backend elérhető /api/get_data.php útvonalon
     const codes = name.split(";").map(code => code.trim());
     let allCourses = [];
+    let errorCodes = [];
     for (const code of codes) {
-      const response = await fetch(`/api/get_data.php?name=${encodeURIComponent(code)}&semester=${encodeURIComponent(semester)}`);
+      const response = await fetch(`/api/get_data.php?name=${encodeURIComponent(code)}&semester=${encodeURIComponent(semester)}`); //http://localhost
       const data = await response.json();
       console.log(data);
       if (data.error) {
         alert(data.error);
         return;
       }
+      if (data.length === 0) {
+        errorCodes = errorCodes.concat(code);
+      }
       allCourses = allCourses.concat(data);
     }
     setCourses(allCourses);
+    setErrorCodes(errorCodes);
   };
 
   return (
@@ -47,8 +52,7 @@ function App() {
         />
         <h2>Naptár</h2>
         <ColorMapping />
-        <Calendar courses={courses} />
-        <ResultTable courses={courses} />
+        <Calendar courses={courses} errorCodes={errorCodes} />
       </div>
     </div>
   );

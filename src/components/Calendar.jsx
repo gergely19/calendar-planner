@@ -1,227 +1,351 @@
-import React, { useEffect, useRef } from 'react';
-import '../indexstyle.css';
+import React, { use, useEffect, useRef } from "react";
+import "../indexstyle.css";
 
 const errors = {
-    "IP-18KVIKWPROGEG": [2,5,6,8,9,10],
-    "IP-18eKVIHJEG": [],
-    "IP-18KVISZWPROGEG": [4],
-    "IP-18KVSZKRBG": [],
-    "IP-24KVSZKBIZTE": [1],
-    "IP-18KVPYEG": [4, 5, 6],
-    "IP-24KVIMWADEG":  [1],
-    "IP-18cSZÁMEA1G": [1, 2, 12, 5],
-    "IP-18cNM1G": [1, 2, 3],
-    "IP-18AB1G": [1, 2, 6, 8, 7, 13, 15, 14, 17, 16,20],
-    "IP-18OPREG": [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 20],
-    "IP-18cSZTEG": [1, 2, 3]
+  "IP-18KVIKWPROGEG": [2, 5, 6, 8, 9, 10],
+  "IP-18eKVIHJEG": [],
+  "IP-18KVISZWPROGEG": [4],
+  "IP-18KVSZKRBG": [],
+  "IP-24KVSZKBIZTE": [1],
+  "IP-18KVPYEG": [4, 5, 6],
+  "IP-24KVIMWADEG": [1],
+  "IP-18cSZÁMEA1G": [1, 2, 12, 5],
+  "IP-18cNM1G": [1, 2, 3],
+  "IP-18AB1G": [1, 2, 6, 8, 7, 13, 15, 14, 17, 16, 20],
+  "IP-18OPREG": [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 20],
+  "IP-18cSZTEG": [1, 2, 3],
 };
 
 function getColor() {
-    const getVibrantComponent = () => Math.floor(128 + Math.random() * 128).toString(16).padStart(2, '0');
-    return `#${getVibrantComponent()}${getVibrantComponent()}${getVibrantComponent()}`;
+  const getVibrantComponent = () =>
+    Math.floor(128 + Math.random() * 128)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${getVibrantComponent()}${getVibrantComponent()}${getVibrantComponent()}`;
 }
 
 function getDay(day) {
-    let i = 0;
-    switch (day) {
-        case "Hétfo": i = 1; break;
-        case "Kedd": i = 2; break;
-        case "Szerda": i = 3; break;
-        case "Csütörtök": i = 4; break;
-        case "Péntek": i = 5; break;
-        default: i = 0; break;
-    }
-    return window.DayPilot.Date.today().firstDayOfWeek().addDays(i);
+  let i = 0;
+  switch (day) {
+    case "Hétfo":
+      i = 1;
+      break;
+    case "Kedd":
+      i = 2;
+      break;
+    case "Szerda":
+      i = 3;
+      break;
+    case "Csütörtök":
+      i = 4;
+      break;
+    case "Péntek":
+      i = 5;
+      break;
+    default:
+      i = 0;
+      break;
+  }
+  return window.DayPilot.Date.today().firstDayOfWeek().addDays(i);
 }
 
 function processCourses(courses) {
-    const kurzusok = { eloadas: [], gyakorlat: [] };
-    courses.forEach(item => {
-        const kurzuskod = parseInt(item.kodok.split('-')[2].split(' ')[0]);
-        if (kurzuskod >= 90) {
-            kurzusok.eloadas.push(item);
-        } else {
-            kurzusok.gyakorlat.push(item);
-        }
-    });
-
-    // Tantárgy név -> szín mapping
-    const colorNameMapping = {};
-
-    // Segéd: színt ad vissza, ha már van, ugyanazt, ha nincs, generál egyet
-    function getColorForName(name) {
-        if (!colorNameMapping[name]) {
-            colorNameMapping[name] = getColor();
-        }
-        return colorNameMapping[name];
+  const kurzusok = { eloadas: [], gyakorlat: [] };
+  courses.forEach((item) => {
+    const kurzuskod = parseInt(item.kodok.split("-")[2].split(" ")[0]);
+    if (kurzuskod >= 90) {
+      kurzusok.eloadas.push(item);
+    } else {
+      kurzusok.gyakorlat.push(item);
     }
+  });
 
-    const events = [];
-    ["eloadas", "gyakorlat"].forEach(type => {
-        kurzusok[type].forEach(item => {
-            const kodokParts = item.kodok.split('-');
-            const kurzuskod = parseInt(kodokParts[2].split(' ')[0]);
-            const targykod = item.kodok.split(' ')[0].replace(/-\d+$/, "");
-            if (!(targykod in errors) || !errors[targykod].includes(kurzuskod)) {
-                const idopontParts = item.idopont.split(" ");
-                if (idopontParts.length > 1) {
-                    const day = idopontParts[0];
-                    const [start, end] = idopontParts[1].split("-");
-                    const [startHour, startMin] = start.split(":");
-                    const [endHour, endMin] = end.split(":");
-                    let tantargyName = item.tantargy.replace("Ea+GY", "Ea+Gy");
-                    const includesBoth = tantargyName.includes("Ea+Gy");
-                    if (includesBoth) {
-                        tantargyName = type === "eloadas"
-                            ? tantargyName.replace("+Gy", "")
-                            : tantargyName.replace("Ea+", "");
-                    }
-                    // Szín hozzárendelése a tantárgy névhez
-                    const color = getColorForName(tantargyName);
-                    events.push({
-                        start: getDay(day).addHours(startHour).addMinutes(startMin),
-                        end: getDay(day).addHours(endHour).addMinutes(endMin),
-                        id: window.DayPilot.guid(),
-                        text: tantargyName + " #" + kurzuskod,
-                        barColor: color,
-                        tags: {
-                            tanar: item.tanar,
-                            tantargy: tantargyName,
-                            kurzuskod: "#" + kurzuskod
-                        }
-                    });
-                }
-            }
-        });
+  const colorNameMapping = {};
+  function getColorForName(name) {
+    if (!colorNameMapping[name]) {
+      colorNameMapping[name] = getColor();
+    }
+    return colorNameMapping[name];
+  }
+
+  const events = [];
+  ["eloadas", "gyakorlat"].forEach((type) => {
+    kurzusok[type].forEach((item) => {
+      const kodokParts = item.kodok.split("-");
+      const kurzuskod = parseInt(kodokParts[2].split(" ")[0]);
+      const targykod = item.kodok.split(" ")[0].replace(/-\d+$/, "");
+      if (!(targykod in errors) || !errors[targykod].includes(kurzuskod)) {
+        const idopontParts = item.idopont.split(" ");
+        if (idopontParts.length > 1) {
+          const day = idopontParts[0];
+          const [start, end] = idopontParts[1].split("-");
+          const [startHour, startMin] = start.split(":");
+          const [endHour, endMin] = end.split(":");
+          let tantargyName = item.tantargy.replace("Ea+GY", "Ea+Gy");
+          const includesBoth = tantargyName.includes("Ea+Gy");
+          if (includesBoth) {
+            tantargyName =
+              type === "eloadas"
+                ? tantargyName.replace("+Gy", "")
+                : tantargyName.replace("Ea+", "");
+          }
+          const color = getColorForName(tantargyName);
+          events.push({
+            start: getDay(day).addHours(startHour).addMinutes(startMin),
+            end: getDay(day).addHours(endHour).addMinutes(endMin),
+            id: window.DayPilot.guid(),
+            text: tantargyName + " #" + kurzuskod,
+            barColor: color,
+            tags: {
+              tanar: item.tanar,
+              tantargy: tantargyName,
+              kurzuskod: kurzuskod,
+            },
+          });
+        }
+      }
     });
-    return events;
+  });
+  return events;
 }
 
-const Calendar = ({ courses }) => {
-    const dpRef = useRef(null);
+const Calendar = ({ courses, errorCodes }) => {
+  const dpRef = useRef(null);
 
-    useEffect(() => {
-        const DP = window.DayPilot;
-        if (!DP) {
-            console.error("DayPilot is not loaded!");
-            return;
-        }
+  useEffect(() => {
+    const DP = window.DayPilot;
+    if (!DP) {
+      console.error("DayPilot is not loaded!");
+      return;
+    }
 
-        if (dpRef.current) {
-            dpRef.current.dispose();
-        }
+    if (dpRef.current) {
+      dpRef.current.dispose();
+    }
 
-        const dp = new DP.Calendar("dp");
-        dpRef.current = dp;
+    const dp = new DP.Calendar("dp");
+    dpRef.current = dp;
 
-        dp.days = 5;
-        dp.dayBeginsHour = 8;
-        dp.dayEndsHour = 21;
-        dp.businessBeginsHour = 8;
-        dp.businessEndsHour = 21;
-        dp.cellDuration = 15;
-        dp.cellHeight = 15;
-        dp.startDate = getDay("Hétfo");
-        dp.eventHoverHandling = "Bubble";
+    dp.days = 5;
+    dp.dayBeginsHour = 8;
+    dp.dayEndsHour = 21;
+    dp.businessBeginsHour = 8;
+    dp.businessEndsHour = 21;
+    dp.cellDuration = 15;
+    dp.cellHeight = 15;
+    dp.startDate = getDay("Hétfo");
+    dp.eventHoverHandling = "Bubble";
 
-        dp.onBeforeHeaderRender = function (args) {
-            var date = args.header.start;
-            args.header.html = date.toString("dddd");
-        };
+    dp.onBeforeHeaderRender = function (args) {
+      var date = args.header.start;
+      args.header.html = date.toString("dddd");
+    };
 
-        dp.onBeforeTimeHeaderRender = function (args) {
-            const hour = DP.Date.today().addTime(args.header.time);
-            args.header.html = hour.toString("H:mm");
-            args.header.cssClass = "hourheader";
-        };
+    dp.onBeforeTimeHeaderRender = function (args) {
+      const hour = DP.Date.today().addTime(args.header.time);
+      args.header.html = hour.toString("H:mm");
+      args.header.cssClass = "hourheader";
+    };
 
-        dp.onBeforeEventRender = function (args) {
-            var clickedTags = args.e.tags;
-            args.data.bubbleHtml = clickedTags["tantargy"] + " - " + clickedTags["tanar"];
-        };
+    dp.onBeforeEventRender = function (args) {
+      var clickedTags = args.e.tags;
+      args.data.bubbleHtml =
+        clickedTags["tantargy"] + " - " + clickedTags["tanar"];
+    };
 
-        dp.onTimeRangeSelected = function (args) {
-            var name = prompt("Új esemény neve:", "Esemény");
-            if (!name) return;
-            var e = new DP.Event({
-                start: args.start,
-                end: args.end,
-                id: DP.guid(),
-                text: name
-            });
-            dp.events.add(e);
-            dp.clearSelection();
-        };
+    dp.onTimeRangeSelected = function (args) {
+      var name = prompt("Új esemény neve:", "Esemény");
+      if (!name) return;
+      var e = new DP.Event({
+        start: args.start,
+        end: args.end,
+        id: DP.guid(),
+        text: name,
+      });
+      dp.events.add(e);
+      dp.clearSelection();
+    };
 
-        // --- ESEMÉNYEK HOZZÁADÁSA ---
-        dp.events.list = processCourses(courses);
+    // Események generálása
+    const events = processCourses(courses);
+    dp.events.list = events;
 
-        dp.onEventClick = function (args) {
-    const clickedEvent = args.e;
-    const clickedTantargy = clickedEvent.data.tags.tantargy;
-    const clickedId = clickedEvent.id();
-    const clickedBarColor = clickedEvent.data.barColor;
-    const clickedTags = clickedEvent.data.tags;
+    dp.onEventClick = function (args) {
+      const clickedEvent = args.e;
+      const clickedTantargy = clickedEvent.data.tags.tantargy;
+      const clickedId = clickedEvent.id();
+      const clickedBarColor = clickedEvent.data.barColor;
+      const clickedTags = clickedEvent.data.tags;
 
-    // Ha már van localStorage-ban, visszaállítjuk az eseményeket
-    if (localStorage.getItem(clickedTantargy)) {
-        const eventsToRestore = JSON.parse(localStorage.getItem(clickedTantargy))["deletedEvents"];
+      if (localStorage.getItem(clickedTantargy)) {
+        const eventsToRestore = JSON.parse(
+          localStorage.getItem(clickedTantargy)
+        )["deletedEvents"];
         localStorage.removeItem(clickedTantargy);
 
-        eventsToRestore.forEach(event => {
-            // Visszaállítjuk az eredeti szöveget: kurzuskód + tantárgy + oktató
-            if (event.tags) {
-                event.text = `${event.tags.kurzuskod} - ${event.tags.tantargy}`; //\n${event.tags.tanar}
-            }
-            dp.events.add(event);
+        eventsToRestore.forEach((event) => {
+          if (event.tags) {
+            event.text = `#${event.tags.kurzuskod} - ${event.tags.tantargy}`;
+          }
+          dp.events.add(event);
         });
 
-        // Visszaállítjuk a kattintott esemény eredeti színét és szövegét
         clickedEvent.data.backColor = clickedEvent.data.originalColor || "";
         clickedEvent.data.isSelected = false;
         clickedEvent.data.fontColor = "black";
-        clickedEvent.text(`${clickedTags.kurzuskod} - ${clickedTags.tantargy}`); //\n${clickedTags.tanar}
+        clickedEvent.text(
+          `#${clickedTags.kurzuskod} - ${clickedTags.tantargy}`
+        );
         dp.events.update(clickedEvent);
-    } else {
-        // Csak az adott tantárgyhoz tartozó eseményeket töröljük
-        const eventsToStore = dp.events.list.filter(event =>
+      } else {
+        const eventsToStore = dp.events.list.filter(
+          (event) =>
             event.tags.tantargy === clickedTantargy && event.id !== clickedId
         );
-        localStorage.setItem(clickedTantargy, JSON.stringify({
-            "clickedEvent": clickedEvent.data,
-            "clickedColor": clickedBarColor,
-            "deletedEvents": eventsToStore
-        }));
-
-        // Töröljük az adott tantárgyhoz tartozó eseményeket, kivéve a kattintottat
-        dp.events.list = dp.events.list.filter(ev =>
-            !(ev.tags.tantargy === clickedTantargy && ev.id !== clickedId)
+        localStorage.setItem(
+          clickedTantargy,
+          JSON.stringify({
+            clickedEvent: clickedEvent.data,
+            clickedColor: clickedBarColor,
+            deletedEvents: eventsToStore,
+          })
         );
 
-        // Kiemelés: szín, szöveg módosítás
+        dp.events.list = dp.events.list.filter(
+          (ev) => !(ev.tags.tantargy === clickedTantargy && ev.id !== clickedId)
+        );
+
         clickedEvent.data.originalColor = clickedEvent.data.backColor;
         clickedEvent.data.backColor = clickedBarColor;
         clickedEvent.data.isSelected = true;
-        clickedEvent.text(`${clickedTags.kurzuskod} - ${clickedTags.tantargy}\n${clickedTags.tanar}`);
+        clickedEvent.text(
+          `#${clickedTags.kurzuskod} - ${clickedTags.tantargy}\n${clickedTags.tanar}`
+        );
         dp.events.update(clickedEvent);
+      }
+    };
+
+    dp.init();
+
+    // ----------------------------
+    // Lista kirajzolása
+    // ----------------------------
+    const coursesDiv = document.getElementById("courses");
+    if (coursesDiv) {
+      coursesDiv.innerHTML = "";
+      const grouped = {};
+      events.forEach((e) => {
+        if (!grouped[e.tags.tantargy]) {
+          grouped[e.tags.tantargy] = [];
+        }
+        grouped[e.tags.tantargy].push(e);
+      });
+
+      Object.entries(grouped).forEach(([tantargy, lista]) => {
+        const title = document.createElement("h3");
+        title.textContent = tantargy;
+        coursesDiv.appendChild(title);
+
+        lista.forEach((event) => {
+          const wrapper = document.createElement("label");
+          wrapper.style.display = "block";
+
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.value = event.tags.kurzuskod;
+
+          const text = document.createTextNode(
+            ` #${event.tags.kurzuskod} - ${event.tags.tanar}`
+          );
+
+          wrapper.appendChild(checkbox);
+          wrapper.appendChild(text);
+          coursesDiv.appendChild(wrapper);
+        });
+      });
+
+      // Nem szereplő kurzusok (nincs időpont)
+      const scheduledSet = new Set(
+        events.map((e) => `${e.tags.tantargy}#${e.tags.kurzuskod}`)
+      );
+
+
+      const unscheduled = courses.filter((c) => {
+        const kodokParts = c.kodok.split("-");
+        const kurzuskod = parseInt(kodokParts[2].split(" ")[0]);
+
+        // Tantárgy neve + típus meghatározása
+        let tantargyNev = c.tantargy;
+        let tipus = "";
+
+        if (tantargyNev.endsWith("Ea+Gy")) {
+          if (kurzuskod >= 90) {
+            tipus = "Ea";
+          } else {
+            tipus = "Gy";
+          }
+          tantargyNev = tantargyNev.replace("Ea+Gy", tipus);
+        }
+
+        const keresettKulcs = `${tantargyNev}#${kurzuskod}`;
+
+        return !scheduledSet.has(keresettKulcs);
+      });
+
+
+      if (unscheduled.length > 0) {
+        const noTimeTitle = document.createElement("h1");
+        noTimeTitle.textContent = "Időpont nincs meghatározva:";
+        coursesDiv.appendChild(noTimeTitle);
+
+        unscheduled.forEach((course) => {
+          const kodokParts = course.kodok.split("-");
+          const kurzuskod = parseInt(kodokParts[2].split(" ")[0]);
+
+          const wrapper = document.createElement("label");
+          wrapper.style.display = "block";
+
+
+          const text = document.createTextNode(
+            ` #${kurzuskod} - ${course.tantargy} - ${course.tanar}`
+          );
+
+          wrapper.appendChild(text);
+          coursesDiv.appendChild(wrapper);
+        });
+      }
     }
-};
 
-        dp.init();
+    return () => {
+      if (dpRef.current) {
+        dpRef.current.dispose();
+        dpRef.current = null;
+      }
+    };
+  }, [courses]);
 
-        return () => {
-            if (dpRef.current) {
-                dpRef.current.dispose();
-                dpRef.current = null;
-            }
-        };
-    }, [courses]); 
+  useEffect(() => {
+    const errorCodesDiv = document.getElementById("errorCodes");
+    if (errorCodesDiv && errorCodes.length > 0) {
+      errorCodesDiv.innerHTML = "";  
+      const noCodesTitle = document.createElement("h1");
+        noCodesTitle.textContent = "Alábbi kurzusok nem találhatóak:";
+        errorCodesDiv.appendChild(noCodesTitle);
+        errorCodes.forEach((code) => {
+        const codeElement = document.createElement("div");
+        codeElement.textContent = code;
+        errorCodesDiv.appendChild(codeElement); 
+        });
+    }  
+    }, [errorCodes]);
 
-    return (
-        <div>
-            <div id="dp"></div>
-        </div>
-    );
+  return (
+    <div>
+      <div id="dp"></div>
+      <div id="courses"></div>
+      <div id="errorCodes"></div>
+    </div>
+  );
 };
 
 export default Calendar;
