@@ -1,20 +1,17 @@
-import React, { use, useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import "../indexstyle.css";
 
-const errors = {
-  "IP-18KVIKWPROGEG": [2, 5, 6, 8, 9, 10],
-  "IP-18eKVIHJEG": [],
-  "IP-18KVISZWPROGEG": [4],
-  "IP-18KVSZKRBG": [],
-  "IP-24KVSZKBIZTE": [1],
-  "IP-18KVPYEG": [4, 5, 6],
-  "IP-24KVIMWADEG": [1],
-  "IP-18cSZÁMEA1G": [1, 2, 12, 5],
-  "IP-18cNM1G": [1, 2, 3],
-  "IP-18AB1G": [1, 2, 6, 8, 7, 13, 15, 14, 17, 16, 20],
-  "IP-18OPREG": [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 20],
-  "IP-18cSZTEG": [1, 2, 3],
-};
+let errors = window.errors || {};
+window.errors = errors;
+
+/*
+errors  = {
+  "IP-18cSZÁMEA2G": [1,2,7,8,9,10],
+  "IP-18KPROGEG": [1,2,3,4,5],
+  "IP-18cVSZG": [1],
+}
+
+*/
 
 function getColor() {
   const getVibrantComponent = () =>
@@ -74,7 +71,10 @@ function processCourses(courses) {
       const kodokParts = item.kodok.split("-");
       const kurzuskod = parseInt(kodokParts[2].split(" ")[0]);
       const targykod = item.kodok.split(" ")[0].replace(/-\d+$/, "");
-      if (!(targykod in errors) || !errors[targykod].includes(kurzuskod)) {
+      if (
+        !(targykod in window.errors) ||
+        !window.errors[targykod].includes(kurzuskod)
+      ) {
         const idopontParts = item.idopont.split(" ");
         if (idopontParts.length > 1) {
           const day = idopontParts[0];
@@ -94,7 +94,7 @@ function processCourses(courses) {
             start: getDay(day).addHours(startHour).addMinutes(startMin),
             end: getDay(day).addHours(endHour).addMinutes(endMin),
             id: window.DayPilot.guid(),
-            text: tantargyName + " #" + kurzuskod,
+            text: "#" + kurzuskod + " - " + tantargyName,
             barColor: color,
             tags: {
               tanar: item.tanar,
@@ -254,6 +254,76 @@ const Calendar = ({ courses, errorCodes }) => {
           checkbox.type = "checkbox";
           checkbox.value = event.tags.kurzuskod;
 
+          // Betöltéskor beállítjuk a checked értéket a localStorage alapján
+          const deletedEvents = JSON.parse(
+            localStorage.getItem("deletedEvents") || "[]"
+          );
+          if (
+            deletedEvents.some(
+              (ev) =>
+                ev.tags.tantargy === event.tags.tantargy &&
+                ev.tags.kurzuskod === event.tags.kurzuskod
+            )
+          ) {
+            checkbox.checked = true;
+          }
+
+          checkbox.addEventListener("change", () => {
+            let deletedEvents = JSON.parse(
+              localStorage.getItem("deletedEvents") || "[]"
+            );
+            const subjectKey = event.tags.tantargy;
+            // Lekérjük a subjectKey adatait
+            let subjectData = JSON.parse(
+              localStorage.getItem(subjectKey) || "null"
+            );
+            if (checkbox.checked) {
+              // Hozzáadjuk a törölt eseményekhez
+              deletedEvents.push(event);
+              dp.events.list = dp.events.list.filter(
+                (ev) =>
+                  !(
+                    ev.tags.tantargy === event.tags.tantargy &&
+                    ev.tags.kurzuskod === event.tags.kurzuskod
+                  )
+              );
+              if (subjectData) {
+                subjectData.deletedEvents = subjectData.deletedEvents.filter(
+                  (ev) =>
+                    !(
+                      ev.tags.tantargy === event.tags.tantargy &&
+                      ev.tags.kurzuskod === event.tags.kurzuskod
+                    )
+                );
+
+                localStorage.setItem(subjectKey, JSON.stringify(subjectData));
+              }
+            } else {
+              // Kivesszük a törölt események közül
+              deletedEvents = deletedEvents.filter(
+                (ev) =>
+                  !(
+                    ev.tags.tantargy === event.tags.tantargy &&
+                    ev.tags.kurzuskod === event.tags.kurzuskod
+                  )
+              );
+
+              if (!subjectData) {
+                // Ha nincs ilyen tárgy, létrehozzuk az eventet
+                dp.events.add(event);
+              } else {
+                // Hozzáadjuk az eseményt a tárgy saját deletedEvents listájához
+                subjectData.deletedEvents.push(event);
+                localStorage.setItem(subjectKey, JSON.stringify(subjectData));
+              }
+            }
+            localStorage.setItem(
+              "deletedEvents",
+              JSON.stringify(deletedEvents)
+            );
+            dp.update();
+          });
+
           const text = document.createTextNode(
             ` #${event.tags.kurzuskod} - ${event.tags.tanar}`
           );
@@ -268,7 +338,6 @@ const Calendar = ({ courses, errorCodes }) => {
       const scheduledSet = new Set(
         events.map((e) => `${e.tags.tantargy}#${e.tags.kurzuskod}`)
       );
-
 
       const unscheduled = courses.filter((c) => {
         const kodokParts = c.kodok.split("-");
@@ -292,7 +361,6 @@ const Calendar = ({ courses, errorCodes }) => {
         return !scheduledSet.has(keresettKulcs);
       });
 
-
       if (unscheduled.length > 0) {
         const noTimeTitle = document.createElement("h1");
         noTimeTitle.textContent = "Időpont nincs meghatározva:";
@@ -304,7 +372,6 @@ const Calendar = ({ courses, errorCodes }) => {
 
           const wrapper = document.createElement("label");
           wrapper.style.display = "block";
-
 
           const text = document.createTextNode(
             ` #${kurzuskod} - ${course.tantargy} - ${course.tanar}`
@@ -327,17 +394,17 @@ const Calendar = ({ courses, errorCodes }) => {
   useEffect(() => {
     const errorCodesDiv = document.getElementById("errorCodes");
     if (errorCodesDiv && errorCodes.length > 0) {
-      errorCodesDiv.innerHTML = "";  
+      errorCodesDiv.innerHTML = "";
       const noCodesTitle = document.createElement("h1");
-        noCodesTitle.textContent = "Alábbi kurzusok nem találhatóak:";
-        errorCodesDiv.appendChild(noCodesTitle);
-        errorCodes.forEach((code) => {
+      noCodesTitle.textContent = "Alábbi kurzusok nem találhatóak:";
+      errorCodesDiv.appendChild(noCodesTitle);
+      errorCodes.forEach((code) => {
         const codeElement = document.createElement("div");
         codeElement.textContent = code;
-        errorCodesDiv.appendChild(codeElement); 
-        });
-    }  
-    }, [errorCodes]);
+        errorCodesDiv.appendChild(codeElement);
+      });
+    }
+  }, [errorCodes]);
 
   return (
     <div>

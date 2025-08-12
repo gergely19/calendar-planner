@@ -8,9 +8,10 @@ import "./indexstyle.css";
 function App() {
   const [courses, setCourses] = useState([]);
   const [errorCodes, setErrorCodes] = useState([]);
-  const [name, setName] = useState("IP-18KPROGEG; IP-18MIAE; IP-18cAB2G; IP-18cSZÁMEA2G;  IP-18KVPYEG; IP-24KVSZPDMEG; IP-18cVSZG"); //IP-18cAB2E; IP-18cSZÁMEA2E;
+  const [name, setName] = useState(
+    "IP-18KPROGEG; IP-18cAB2E; IP-18cSZÁMEA2E;  IP-18MIAE; IP-18cAB2G; IP-18cSZÁMEA2G;  IP-18KVPYEG; IP-24KVSZPDMEG; IP-18cVSZG"
+  ); //IP-18cAB2E; IP-18cSZÁMEA2E;    IP-18KPROGEG  ; IP-18MIAE; IP-18cAB2G; IP-18cSZÁMEA2G;  IP-18KVPYEG; IP-24KVSZPDMEG; IP-18cVSZG
   const [semester, setSemester] = useState("2025-2026-1");
-
 
   const fetchData = async () => {
     if (!name) {
@@ -19,17 +20,32 @@ function App() {
     }
     localStorage.clear(); // Töröljük a helyi tárolót, hogy friss adatokat kapjunk
     // Feltételezzük, hogy a backend elérhető /api/get_data.php útvonalon
-    const codes = name.split(";").map(code => code.trim());
+    const codes = name.split(";").map((code) => code.trim());
     let allCourses = [];
     let errorCodes = [];
     for (const code of codes) {
-      const response = await fetch(`/api/get_data.php?name=${encodeURIComponent(code)}&semester=${encodeURIComponent(semester)}`); //http://localhost
-      const data = await response.json();
-      console.log(data);
-      if (data.error) {
-        alert(data.error);
-        return;
+      let data = [];
+      let attempts = 0;
+
+      while (attempts < 3) {
+        const response = await fetch(`http://localhost/api/get_data.php?name=${encodeURIComponent(code)}&semester=${encodeURIComponent(semester)}`);
+        
+        const json = await response.json();
+        console.log(json);
+
+        if (json.error) {
+          alert(json.error);
+          return;
+        }
+
+        if (Array.isArray(json) && json.length > 0) {
+          data = json;
+          break;
+        }
+
+        attempts++;
       }
+
       if (data.length === 0) {
         errorCodes = errorCodes.concat(code);
       }
