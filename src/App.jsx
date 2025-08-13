@@ -9,8 +9,10 @@ function App() {
   const [courses, setCourses] = useState([]);
   const [errorCodes, setErrorCodes] = useState([]);
   const [name, setName] = useState(
-    "IP-18KPROGEG; IP-18cAB2E; IP-18cSZÁMEA2E;  IP-18MIAE; IP-18cAB2G; IP-18cSZÁMEA2G;  IP-18KVPYEG; IP-24KVSZPDMEG; IP-18cVSZG"
+    "IP-18cVSZG; IP-24KVSZPDMEG; IP-18KVIBDAG; IP-18cSZÁMEA2E; IP-18cAB2G; IP-18KVSZPREG; IP-18MIAE; IP-18KPROGEG; IP-18KVPYEG; IP-18cAB2E; IP-18KVELE; IP-18KVSZBGTE; IP-18KVIFSWPROGG; IP-18cSZÁMEA2G"
   ); //IP-18cAB2E; IP-18cSZÁMEA2E;    IP-18KPROGEG  ; IP-18MIAE; IP-18cAB2G; IP-18cSZÁMEA2G;  IP-18KVPYEG; IP-24KVSZPDMEG; IP-18cVSZG
+
+  //összes IP-18cVSZG; IP-24KVSZPDMEG; IP-18KVIBDAG; IP-18cSZÁMEA2E; IP-18cAB2G; IP-18KVSZPREG; IP-18MIAE; IP-18KPROGEG; IP-18KVPYEG; IP-18cAB2E; IP-18KVELE; IP-18KVSZBGTE; IP-18KVIFSWPROGG; IP-18cSZÁMEA2G
   const [semester, setSemester] = useState("2025-2026-1");
 
   const fetchData = async () => {
@@ -18,7 +20,14 @@ function App() {
       alert("Kérlek, add meg a tantárgyak kódjait!");
       return;
     }
-    localStorage.clear(); // Töröljük a helyi tárolót, hogy friss adatokat kapjunk
+    const keepKey = "deletedEvents"; // ezt nem akarjuk törölni
+    const keepValue = localStorage.getItem(keepKey); // érték elmentése
+
+    localStorage.clear(); // minden törlése
+    if (keepValue !== null) {
+        localStorage.setItem(keepKey, keepValue); // visszaállítás
+    }
+
     // Feltételezzük, hogy a backend elérhető /api/get_data.php útvonalon
     const codes = name.split(";").map((code) => code.trim());
     let allCourses = [];
@@ -28,7 +37,7 @@ function App() {
       let attempts = 0;
 
       while (attempts < 3) {
-        const response = await fetch(`http://localhost/api/get_data.php?name=${encodeURIComponent(code)}&semester=${encodeURIComponent(semester)}`);
+        const response = await fetch(`/api/get_data.php?name=${encodeURIComponent(code)}&semester=${encodeURIComponent(semester)}`);
         
         const json = await response.json();
         console.log(json);

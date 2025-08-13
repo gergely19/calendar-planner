@@ -9,6 +9,7 @@ errors  = {
   "IP-18cSZÁMEA2G": [1,2,7,8,9,10],
   "IP-18KPROGEG": [1,2,3,4,5],
   "IP-18cVSZG": [1],
+  "IP-18cAB2G": [1,5,6,16],
 }
 
 */
@@ -168,7 +169,17 @@ const Calendar = ({ courses, errorCodes }) => {
 
     // Események generálása
     const events = processCourses(courses);
-    dp.events.list = events;
+    const deletedEvents = JSON.parse(
+      localStorage.getItem("deletedEvents") || "[]"
+    );
+
+    dp.events.list = events.filter((e) => {
+      return !deletedEvents.some(
+        (de) =>
+          de.tags.tantargy === e.tags.tantargy &&
+          de.tags.kurzuskod === e.tags.kurzuskod
+      );
+    });
 
     dp.onEventClick = function (args) {
       const clickedEvent = args.e;
@@ -358,7 +369,18 @@ const Calendar = ({ courses, errorCodes }) => {
 
         const keresettKulcs = `${tantargyNev}#${kurzuskod}`;
 
-        return !scheduledSet.has(keresettKulcs);
+        const deletedEvents = JSON.parse(
+          localStorage.getItem("deletedEvents") || "[]"
+        );
+
+        return (
+          !scheduledSet.has(keresettKulcs) &&
+          !deletedEvents.some(
+            (de) =>
+              de.tags.tantargy === tantargyNev &&
+              de.tags.kurzuskod === kurzuskod
+          )
+        );
       });
 
       if (unscheduled.length > 0) {
