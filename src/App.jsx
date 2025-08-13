@@ -7,6 +7,7 @@ import "./indexstyle.css";
 
 function App() {
   const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [errorCodes, setErrorCodes] = useState([]);
   const [name, setName] = useState(
     "IP-18cVSZG; IP-24KVSZPDMEG; IP-18KVIBDAG; IP-18cSZÁMEA2E; IP-18cAB2G; IP-18KVSZPREG; IP-18MIAE; IP-18KPROGEG; IP-18KVPYEG; IP-18cAB2E; IP-18KVELE; IP-18KVSZBGTE; IP-18KVIFSWPROGG; IP-18cSZÁMEA2G"
@@ -27,7 +28,7 @@ function App() {
     if (keepValue !== null) {
         localStorage.setItem(keepKey, keepValue); // visszaállítás
     }
-
+    setLoading(true);
     // Feltételezzük, hogy a backend elérhető /api/get_data.php útvonalon
     const codes = name.split(";").map((code) => code.trim());
     let allCourses = [];
@@ -44,6 +45,7 @@ function App() {
 
         if (json.error) {
           alert(json.error);
+          setLoading(false);
           return;
         }
 
@@ -62,6 +64,7 @@ function App() {
     }
     setCourses(allCourses);
     setErrorCodes(errorCodes);
+    setLoading(false);
   };
 
   return (
@@ -79,8 +82,38 @@ function App() {
         <ColorMapping />
         <Calendar courses={courses} errorCodes={errorCodes} />
       </div>
+        {loading && (
+        <div style={overlayStyle}>
+          <div style={boxStyle}>
+            <h2 style={{color:"black"}}>Betöltés...</h2>
+            <div className="spinner" ></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+const overlayStyle = {
+  position: "fixed",
+  top: 0,
+  left: 0,
+  width: "100vw",
+  height: "100vh",
+  backgroundColor: "rgba(0,0,0,0.5)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 9999,
+};
+
+const boxStyle = {
+  backgroundColor: "white",
+  padding: "40px",
+  borderRadius: "8px",
+  textAlign: "center",
+  minWidth: "300px",
+  boxShadow: "0 0 15px rgba(0,0,0,0.3)",
+};
+
 
 export default App;
