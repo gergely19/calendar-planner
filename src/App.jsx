@@ -14,7 +14,7 @@ function App() {
 
   //összes IP-18cVSZG; IP-24KVSZPDMEG; IP-18KVIBDAG; IP-18cSZÁMEA2E; IP-18cAB2G; IP-18KVSZPREG; IP-18MIAE; IP-18KPROGEG; IP-18KVPYEG; IP-18cAB2E; IP-18KVELE; IP-18KVSZBGTE; IP-18KVIFSWPROGG; IP-18cSZÁMEA2G
   const [semester, setSemester] = useState("2025-2026-1");
-
+  const API_URL = import.meta.env.VITE_API_URL || "";
   const fetchData = async () => {
     if (!name) {
       alert("Kérlek, add meg a tantárgyak kódjait!");
@@ -37,7 +37,7 @@ function App() {
       let attempts = 0;
 
       while (attempts < 3) {
-        const response = await fetch(`/api/get_data.php?name=${encodeURIComponent(code)}&semester=${encodeURIComponent(semester)}`);
+        const response = await fetch(`${API_URL}/api/get_data.php?name=${encodeURIComponent(code)}&semester=${encodeURIComponent(semester)}`);
         
         const json = await response.json();
         console.log(json);

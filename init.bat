@@ -12,10 +12,15 @@ call npm run build
 REM 3. Define XAMPP path (állítsd a saját gépednek megfelelően)
 set XAMPP_PATH=C:\xampp\htdocs
 
-REM 4. Copy dist contents to build folder
-echo Copying dist contents to %XAMPP_PATH%\build ...
+REM 4. Copy dist contents to build folder (assets nélkül)
+echo Copying dist contents (except assets) to %XAMPP_PATH%\build ...
 if not exist "%XAMPP_PATH%\build" mkdir "%XAMPP_PATH%\build"
-xcopy /E /Y /I dist\* "%XAMPP_PATH%\build\"
+xcopy /E /Y /I /EXCLUDE:exclude_assets.txt dist\* "%XAMPP_PATH%\build\"
+
+REM 4.1 Copy assets separately to %XAMPP_PATH%\assets
+echo Copying dist\assets to %XAMPP_PATH%\assets ...
+if not exist "%XAMPP_PATH%\assets" mkdir "%XAMPP_PATH%\assets"
+xcopy /E /Y /I dist\assets\* "%XAMPP_PATH%\assets\"
 
 REM 5. Copy get_data.php from local api folder to XAMPP api folder
 echo Copying api\get_data.php to %XAMPP_PATH%\api ...
@@ -25,5 +30,3 @@ copy /Y api\get_data.php "%XAMPP_PATH%\api\"
 echo.
 echo ✅ Deployment completed!
 echo Open your browser at: http://localhost/build/index.html
-
-pause
