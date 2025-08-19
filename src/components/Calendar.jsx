@@ -90,6 +90,14 @@ function processCourses(courses) {
                 ? tantargyName.replace("+Gy", "")
                 : tantargyName.replace("Ea+", "");
           }
+          if (!tantargyName.endsWith("Gy") && !tantargyName.endsWith("Ea")) {
+            if (type === "eloadas") {
+              tantargyName += "   Ea";
+            } else {
+              tantargyName += " Gy";
+            }
+          }
+          
           const color = getColorForName(tantargyName);
           events.push({
             start: getDay(day).addHours(startHour).addMinutes(startMin),
@@ -367,7 +375,14 @@ const Calendar = ({ courses, errorCodes }) => {
           }
           tantargyNev = tantargyNev.replace("Ea+Gy", tipus);
         }
-
+        else if (!tantargyNev.endsWith("Ea") && !tantargyNev.endsWith("Gy")) {
+          if (kurzuskod >= 90) {
+            tipus = "Ea";
+          } else {
+            tipus = "Gy";
+          }
+          tantargyNev += " "+ tipus;
+        }
         const keresettKulcs = `${tantargyNev}#${kurzuskod}`;
 
         const deletedEvents = JSON.parse(
