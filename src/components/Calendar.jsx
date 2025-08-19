@@ -264,6 +264,7 @@ const Calendar = ({ courses, errorCodes }) => {
           const checkbox = document.createElement("input");
           checkbox.type = "checkbox";
           checkbox.value = event.tags.kurzuskod;
+          checkbox.checked = true;
 
           // Betöltéskor beállítjuk a checked értéket a localStorage alapján
           const deletedEvents = JSON.parse(
@@ -276,7 +277,7 @@ const Calendar = ({ courses, errorCodes }) => {
                 ev.tags.kurzuskod === event.tags.kurzuskod
             )
           ) {
-            checkbox.checked = true;
+            checkbox.checked = false;
           }
 
           checkbox.addEventListener("change", () => {
@@ -288,7 +289,7 @@ const Calendar = ({ courses, errorCodes }) => {
             let subjectData = JSON.parse(
               localStorage.getItem(subjectKey) || "null"
             );
-            if (checkbox.checked) {
+            if (!checkbox.checked) {
               // Hozzáadjuk a törölt eseményekhez
               deletedEvents.push(event);
               dp.events.list = dp.events.list.filter(
