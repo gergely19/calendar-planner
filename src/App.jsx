@@ -9,6 +9,7 @@ function App() {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errorCodes, setErrorCodes] = useState([]);
+  const [estimatedTime, setEstimatedTime] = useState("");
   const [name, setName] = useState(
     "IP-18cVSZG; IP-24KVSZPDMEG; IP-18KVIBDAG; IP-18cSZÁMEA2E; IP-18cAB2G; IP-18KVSZPREG; IP-18MIAE; IP-18KPROGEG; IP-18KVPYEG; IP-18cAB2E; IP-18KVELE; IP-18KVSZBGTE; IP-18KVIFSWPROGG; IP-18cSZÁMEA2G"
   ); //IP-18cAB2E; IP-18cSZÁMEA2E;    IP-18KPROGEG  ; IP-18MIAE; IP-18cAB2G; IP-18cSZÁMEA2G;  IP-18KVPYEG; IP-24KVSZPDMEG; IP-18cVSZG
@@ -29,8 +30,11 @@ function App() {
         localStorage.setItem(keepKey, keepValue); // visszaállítás
     }
     setLoading(true);
+    
     // Feltételezzük, hogy a backend elérhető /api/get_data.php útvonalon
     const codes = name.split(";").map((code) => code.trim());
+    setEstimatedTime(`~${Math.round(codes.length * 1.55)} mp`);
+
     let allCourses = [];
     let errorCodes = [];
     for (const code of codes) {
@@ -86,6 +90,7 @@ function App() {
         <div style={overlayStyle}>
           <div style={boxStyle}>
             <h2 style={{color:"black"}}>Betöltés...</h2>
+            <p style={{color:"black"}}>{estimatedTime}</p>
             <div className="spinner" ></div>
           </div>
         </div>
