@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Header from "./components/Header";
 import QueryForm from "./components/QueryForm";
 import ColorMapping from "./components/ColorMapping";
@@ -10,9 +10,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [errorCodes, setErrorCodes] = useState([]);
   const [estimatedTime, setEstimatedTime] = useState("");
-  const [name, setName] = useState(
-    "IP-18cVSZG; IP-24KVSZPDMEG; IP-18KVIBDAG; IP-18cSZÁMEA2E; IP-18cAB2G; IP-18KVSZPREG; IP-18MIAE; IP-18KPROGEG; IP-18KVPYEG; IP-18cAB2E; IP-18KVELE; IP-18KVSZBGTE; IP-18KVIFSWPROGG; IP-18cSZÁMEA2G"
-  ); //IP-18cAB2E; IP-18cSZÁMEA2E;    IP-18KPROGEG  ; IP-18MIAE; IP-18cAB2G; IP-18cSZÁMEA2G;  IP-18KVPYEG; IP-24KVSZPDMEG; IP-18cVSZG
+  const [name, setName] = useState(""); //IP-18cAB2E; IP-18cSZÁMEA2E;    IP-18KPROGEG  ; IP-18MIAE; IP-18cAB2G; IP-18cSZÁMEA2G;  IP-18KVPYEG; IP-24KVSZPDMEG; IP-18cVSZG
 
   //IP-18cVSZG; IP-24KVSZPDMEG; IP-18KVIBDAG; IP-18cSZÁMEA2E; IP-18cAB2G; IP-18KVSZPREG; IP-18MIAE; IP-18KPROGEG; IP-18KVPYEG; IP-18cAB2E; IP-18KVELE; IP-18KVSZBGTE; IP-18KVIFSWPROGG; IP-18cSZÁMEA2G
   const [semester, setSemester] = useState("2025-2026-1");
@@ -24,11 +22,12 @@ function App() {
     }
     const keepKey = "deletedEvents"; // ezt nem akarjuk törölni
     const keepValue = localStorage.getItem(keepKey); // érték elmentése
-
     localStorage.clear(); // minden törlése
+    localStorage.setItem("codes", name);
     if (keepValue !== null) {
         localStorage.setItem(keepKey, keepValue); // visszaállítás
     }
+    
     setLoading(true);
     
     // Feltételezzük, hogy a backend elérhető /api/get_data.php útvonalon
@@ -70,6 +69,13 @@ function App() {
     setErrorCodes(errorCodes);
     setLoading(false);
   };
+
+  useEffect(() => {
+    const savedCodes = localStorage.getItem("codes");
+    if (savedCodes) {
+      setName(savedCodes);
+    }
+  }, []);
 
   return (
     <div>
