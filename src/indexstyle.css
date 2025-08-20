@@ -24,8 +24,6 @@ header h1 {
 }
 
 .container {
-    width: 90vw;
-    max-width: 90vw;
     margin: 20px auto;
     padding: 20px;
     background-color: white;
@@ -33,6 +31,18 @@ header h1 {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     color: black;
 }
+
+/* indexstyle.css */
+.calendar-wrapper {
+  width: 100%;
+  overflow-x: auto;   /* vízszintes görgetés */
+  overflow-y: hidden; /* opcionális */
+}
+
+#dp {
+  min-width: 900px;   /* a naptár minimális szélessége */
+}
+
 
 #root {
     width: 100%;

@@ -15,11 +15,15 @@ set XAMPP_PATH=C:\xampp\htdocs
 REM 4. Copy dist contents to build folder (assets nélkül)
 echo Copying dist contents (except assets) to %XAMPP_PATH%\build ...
 if not exist "%XAMPP_PATH%\build" mkdir "%XAMPP_PATH%\build"
-xcopy /E /Y /I /EXCLUDE:exclude_assets.txt dist\* "%XAMPP_PATH%\build\"
+robocopy dist "%XAMPP_PATH%\build" /E /XD dist\assets
+
 
 REM 4.1 Copy assets separately to %XAMPP_PATH%\assets
 echo Copying dist\assets to %XAMPP_PATH%\assets ...
-if not exist "%XAMPP_PATH%\assets" mkdir "%XAMPP_PATH%\assets"
+REM töröljük a célmappa tartalmát, ha létezik
+if exist "%XAMPP_PATH%\assets" rmdir /S /Q "%XAMPP_PATH%\assets"
+REM hozzuk létre újra az üres mappát
+mkdir "%XAMPP_PATH%\assets"
 xcopy /E /Y /I dist\assets\* "%XAMPP_PATH%\assets\"
 
 REM 5. Copy get_data.php from local api folder to XAMPP api folder

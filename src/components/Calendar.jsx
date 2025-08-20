@@ -97,7 +97,7 @@ function processCourses(courses) {
               tantargyName += " Gy";
             }
           }
-          
+
           const color = getColorForName(tantargyName);
           events.push({
             start: getDay(day).addHours(startHour).addMinutes(startMin),
@@ -142,6 +142,8 @@ const Calendar = ({ courses, errorCodes }) => {
     dp.businessEndsHour = 21;
     dp.cellDuration = 15;
     dp.cellHeight = 15;
+    dp.cellWidthSpec = "Fixed";   // oszlopok fixek legyenek
+    dp.cellWidth = 150;      
     dp.startDate = getDay("Hétfo");
     dp.eventHoverHandling = "Bubble";
 
@@ -374,14 +376,13 @@ const Calendar = ({ courses, errorCodes }) => {
             tipus = "Gy";
           }
           tantargyNev = tantargyNev.replace("Ea+Gy", tipus);
-        }
-        else if (!tantargyNev.endsWith("Ea") && !tantargyNev.endsWith("Gy")) {
+        } else if (!tantargyNev.endsWith("Ea") && !tantargyNev.endsWith("Gy")) {
           if (kurzuskod >= 90) {
             tipus = "Ea";
           } else {
             tipus = "Gy";
           }
-          tantargyNev += " "+ tipus;
+          tantargyNev += " " + tipus;
         }
         const keresettKulcs = `${tantargyNev}#${kurzuskod}`;
 
@@ -446,7 +447,9 @@ const Calendar = ({ courses, errorCodes }) => {
 
   return (
     <div>
-      <div id="dp"></div>
+      <div className="calendar-wrapper">
+        <div id="dp"></div>
+      </div>
       <div id="courses"></div>
       <div id="errorCodes"></div>
     </div>
