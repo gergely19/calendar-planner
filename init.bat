@@ -1,6 +1,10 @@
 @echo off
 setlocal enabledelayedexpansion
 
+if exist package-lock.json del /f /q package-lock.json
+if exist node_modules rmdir /S /Q node_modules
+
+
 REM 1. Install dependencies
 echo Installing dependencies...
 call npm install
