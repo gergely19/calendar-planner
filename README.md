@@ -1,6 +1,7 @@
 # Órarendtervező
 
 Ez a projekt egy webes alkalmazás, amely segít egyetemi órarendek tervezésében, tantárgykódok alapján. A felhasználó megadhatja a tantárgyak kódjait, majd a rendszer automatikusan lekéri az ELTE tanrend oldaláról az órák időpontjait, és vizuálisan megjeleníti azokat egy naptárban.
+(Ideigelenes elérhető az alábbi linken: https://calendar-planner.infinityfree.me)
 
 ## Fő funkciók
 
