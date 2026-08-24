@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  frontend:
+    image: node:20
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "6000:5173"
+    command: sh -c "npm install && npm run dev -- --host"
+    environment:
+      - VITE_API_URL=http://localhost:6001
+
+  backend:
+    image: php:8.2-apache
+    volumes:
+      - ./api:/var/www/html/api
+    ports:
+      - "6001:80"

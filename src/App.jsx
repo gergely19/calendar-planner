@@ -10,10 +10,10 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [errorCodes, setErrorCodes] = useState([]);
   const [estimatedTime, setEstimatedTime] = useState("");
-  const [name, setName] = useState(""); //IP-18cAB2E; IP-18cSZÁMEA2E;    IP-18KPROGEG  ; IP-18MIAE; IP-18cAB2G; IP-18cSZÁMEA2G;  IP-18KVPYEG; IP-24KVSZPDMEG; IP-18cVSZG
+  const [name, setName] = useState("IPM-22fpiPAIEG;IPM-24fpiPETEG;IPM-22fpiIFE;IPM-22fpiIFG;IPM-22fpiDSEG;ELTE-OI-AI;IPM-24fpiMFCE;IPM-22fRMEG;IPM-22fpiDNDEG;IPM-22fpiPCMSG;IPM-22fpiPME"); //IP-18cAB2E; IP-18cSZÁMEA2E;    IP-18KPROGEG  ; IP-18MIAE; IP-18cAB2G; IP-18cSZÁMEA2G;  IP-18KVPYEG; IP-24KVSZPDMEG; IP-18cVSZG
 
   //IP-18cVSZG; IP-24KVSZPDMEG; IP-18KVIBDAG; IP-18cSZÁMEA2E; IP-18cAB2G; IP-18KVSZPREG; IP-18MIAE; IP-18KPROGEG; IP-18KVPYEG; IP-18cAB2E; IP-18KVELE; IP-18KVSZBGTE; IP-18KVIFSWPROGG; IP-18cSZÁMEA2G
-  const [semester, setSemester] = useState("2025-2026-1");
+  const [semester, setSemester] = useState("2026-2027-1");
   const API_URL = import.meta.env.VITE_API_URL || "";
   const fetchData = async () => {
     if (!name) {
