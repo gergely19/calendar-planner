@@ -48,9 +48,7 @@ function App() {
             throw new Error(`HTTP hiba: ${response.status}`);
           }
           
-          const buffer = await response.arrayBuffer();
-          const decoder = new TextDecoder('iso-8859-2');
-          const htmlString = decoder.decode(buffer);
+          const htmlString = await response.text();
           
           const parser = new DOMParser();
           const doc = parser.parseFromString(htmlString, "text/html");
