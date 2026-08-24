@@ -41,22 +41,46 @@ function App() {
       let attempts = 0;
 
       while (attempts < 3) {
-        const response = await fetch(`${API_URL}/api/get_data.php?name=${encodeURIComponent(code)}&semester=${encodeURIComponent(semester)}`);
-        
-        const json = await response.json();
-        console.log(json);
+        try {
+          const response = await fetch(`/api/elte/tanrendnavigation.php?k=${encodeURIComponent(code)}&m=keres_kod_azon&f=${encodeURIComponent(semester)}`);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP hiba: ${response.status}`);
+          }
+          
+          const buffer = await response.arrayBuffer();
+          const decoder = new TextDecoder('iso-8859-2');
+          const htmlString = decoder.decode(buffer);
+          
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(htmlString, "text/html");
+          const entries = doc.querySelectorAll('table[id*="resulttable"] tr');
+          const parsedCourses = [];
+          
+          entries.forEach(entry => {
+            const cols = entry.querySelectorAll('td');
+            if (cols.length > 0) {
+                const idopont = cols[0]?.textContent?.trim() || "";
+                const kodok = cols[1]?.textContent?.trim() || "";
+                const tantargy = cols[2]?.textContent?.trim() || "";
+                const tanar = cols[5]?.textContent?.trim() || "";
+                
+                parsedCourses.push({
+                    idopont,           
+                    tantargy,
+                    kodok,
+                    tanar
+                });
+            }
+          });
 
-        if (json.error) {
-          alert(json.error);
-          setLoading(false);
-          return;
+          if (parsedCourses.length > 0) {
+            data = parsedCourses;
+            break;
+          }
+        } catch (err) {
+          console.error("Lekérdezési hiba:", err);
         }
-
-        if (Array.isArray(json) && json.length > 0) {
-          data = json;
-          break;
-        }
-
         attempts++;
       }
 
