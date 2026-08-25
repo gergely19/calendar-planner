@@ -14,12 +14,79 @@ errors  = {
 
 */
 
+// localStorage kulcsok – minden felhasználói döntés itt marad meg újratöltés után is
+const KEY_HIDDEN = "deletedEvents"; // kikapcsolt (pipa nélküli) kurzusok
+const KEY_SELECTED = "selectedCourses"; // tárgyanként a kiválasztott kurzuskód
+const KEY_COLORS = "courseColors"; // tárgyanként a szín, hogy ne változzon
+
+function readJson(key, fallback) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key));
+    return value === null || value === undefined ? fallback : value;
+  } catch {
+    return fallback;
+  }
+}
+
+function courseKey(tantargy, kurzuskod) {
+  return `${tantargy}#${kurzuskod}`;
+}
+
+// A korábbi verzió teljes esemény-objektumokat tárolt, az újabb csak kulcsokat.
+function readHidden() {
+  const raw = readJson(KEY_HIDDEN, []);
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) =>
+      typeof item === "string"
+        ? item
+        : item?.tags
+        ? courseKey(item.tags.tantargy, item.tags.kurzuskod)
+        : null
+    )
+    .filter(Boolean);
+}
+
+function writeHidden(list) {
+  localStorage.setItem(KEY_HIDDEN, JSON.stringify(list));
+}
+
+// A tanrend többféle alakban jelöli a típust: "Ea", "Ea.", "Ea+Gy", vagy sehogy.
+// Egységesítjük: a név mindig pontosan egy " Ea" vagy " Gy" végződést kap.
+function courseLabel(tantargy, kurzuskod) {
+  const suffix = kurzuskod >= 90 ? "Ea" : "Gy";
+  let name = (tantargy || "").replace("Ea+GY", "Ea+Gy");
+
+  if (name.includes("Ea+Gy")) {
+    name = suffix === "Ea" ? name.replace("+Gy", "") : name.replace("Ea+", "");
+  }
+
+  // meglévő típusjelölés levágása (csak szóköz/pont után, hogy pl. a "Nagy" ne sérüljön)
+  name = name.replace(/[\s.]+(Ea|Gy)\.?\s*$/i, "").trim();
+
+  return `${name} ${suffix}`;
+}
+
+function escapeHtml(text) {
+  return String(text ?? "").replace(/[&<>"]/g, (ch) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch])
+  );
+}
+
 function getColor() {
   const getVibrantComponent = () =>
     Math.floor(128 + Math.random() * 128)
       .toString(16)
       .padStart(2, "0");
   return `#${getVibrantComponent()}${getVibrantComponent()}${getVibrantComponent()}`;
+}
+
+// Világosabb változat ugyanabból a színből – így a naptár olvasható marad,
+// a bal oldali sáv pedig megadja a tárgy azonosító színét.
+function tint(hex, amount = 0.62) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.substr(i, 2), 16));
+  const mix = (c) => Math.round(c + (255 - c) * amount);
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
 }
 
 function getDay(day) {
@@ -58,10 +125,13 @@ function processCourses(courses) {
     }
   });
 
-  const colorNameMapping = {};
+  // a színek mentve vannak, így újratöltés vagy új lekérdezés után sem változnak
+  const colorNameMapping = readJson(KEY_COLORS, {});
+  let colorsChanged = false;
   function getColorForName(name) {
     if (!colorNameMapping[name]) {
       colorNameMapping[name] = getColor();
+      colorsChanged = true;
     }
     return colorNameMapping[name];
   }
@@ -82,21 +152,7 @@ function processCourses(courses) {
           const [start, end] = idopontParts[1].split("-");
           const [startHour, startMin] = start.split(":");
           const [endHour, endMin] = end.split(":");
-          let tantargyName = item.tantargy.replace("Ea+GY", "Ea+Gy");
-          const includesBoth = tantargyName.includes("Ea+Gy");
-          if (includesBoth) {
-            tantargyName =
-              type === "eloadas"
-                ? tantargyName.replace("+Gy", "")
-                : tantargyName.replace("Ea+", "");
-          }
-          if (!tantargyName.endsWith("Gy") && !tantargyName.endsWith("Ea")) {
-            if (type === "eloadas") {
-              tantargyName += "   Ea";
-            } else {
-              tantargyName += " Gy";
-            }
-          }
+          const tantargyName = courseLabel(item.tantargy, kurzuskod);
 
           const color = getColorForName(tantargyName);
           events.push({
@@ -105,6 +161,8 @@ function processCourses(courses) {
             id: window.DayPilot.guid(),
             text: "#" + kurzuskod + " - " + tantargyName,
             barColor: color,
+            backColor: tint(color),
+            fontColor: "#17232e",
             tags: {
               tanar: item.tanar,
               tantargy: tantargyName,
@@ -115,6 +173,11 @@ function processCourses(courses) {
       }
     });
   });
+
+  if (colorsChanged) {
+    localStorage.setItem(KEY_COLORS, JSON.stringify(colorNameMapping));
+  }
+
   return events;
 }
 
@@ -142,14 +205,19 @@ const Calendar = ({ courses, errorCodes }) => {
     dp.businessEndsHour = 21;
     dp.cellDuration = 15;
     dp.cellHeight = 15;
-    dp.cellWidthSpec = "Fixed";   // oszlopok fixek legyenek
-    dp.cellWidth = 150;      
+    dp.cellWidthSpec = "Auto"; // az oszlopok kitöltik a rendelkezésre álló szélességet
     dp.startDate = getDay("Hétfo");
     dp.eventHoverHandling = "Bubble";
 
+    // Saját esemény létrehozása kikapcsolva – a naptár csak a kurzusokat mutatja
+    dp.timeRangeSelectedHandling = "Disabled";
+
+    const DAY_NAMES = ["Hétfő", "Kedd", "Szerda", "Csütörtök", "Péntek"];
+
     dp.onBeforeHeaderRender = function (args) {
-      var date = args.header.start;
-      args.header.html = date.toString("dddd");
+      const index = args.header.start.getDayOfWeek(); // 0 = vasárnap
+      args.header.html =
+        DAY_NAMES[index - 1] || args.header.start.toString("dddd");
     };
 
     dp.onBeforeTimeHeaderRender = function (args) {
@@ -158,104 +226,84 @@ const Calendar = ({ courses, errorCodes }) => {
       args.header.cssClass = "hourheader";
     };
 
+    const allEvents = processCourses(courses);
+    const selected = readJson(KEY_SELECTED, {});
+
     dp.onBeforeEventRender = function (args) {
-      var clickedTags = args.e.tags;
+      const t = args.data.tags;
+      if (!t) return;
+
+      const isSelected = selected[t.tantargy] === t.kurzuskod;
+      if (isSelected) {
+        args.data.backColor = args.data.barColor;
+        args.data.cssClass = "event-selected";
+      }
+
+      args.data.html =
+        "<div>#" +
+        t["kurzuskod"] +
+        " &ndash; " +
+        escapeHtml(t["tantargy"]) +
+        "</div>" +
+        '<div style="font-size:11px;opacity:.75;margin-top:1px">' +
+        escapeHtml(t["tanar"] || "oktató nincs megadva") +
+        "</div>";
+
       args.data.bubbleHtml =
-        clickedTags["tantargy"] + " - " + clickedTags["tanar"];
+        "<b>" +
+        escapeHtml(t["tantargy"]) +
+        "</b><br>#" +
+        t["kurzuskod"] +
+        " &middot; " +
+        escapeHtml(t["tanar"] || "oktató nincs megadva") +
+        "<br><i>" +
+        (isSelected
+          ? "Kattints rá a kiválasztás visszavonásához"
+          : "Kattints rá a kurzus kiválasztásához") +
+        "</i>";
     };
 
-    dp.onTimeRangeSelected = function (args) {
-      var name = prompt("Új esemény neve:", "Esemény");
-      if (!name) return;
-      var e = new DP.Event({
-        start: args.start,
-        end: args.end,
-        id: DP.guid(),
-        text: name,
+    // A naptár tartalma mindig a mentett állapotból áll össze: a kikapcsolt
+    // kurzusok kimaradnak, kiválasztott csoport esetén a tárgy többi csoportja is.
+    let initialized = false;
+    const renderEvents = () => {
+      const hidden = readHidden();
+      dp.events.list = allEvents.filter((e) => {
+        const key = courseKey(e.tags.tantargy, e.tags.kurzuskod);
+        if (hidden.includes(key)) return false;
+        const pick = selected[e.tags.tantargy];
+        return pick === undefined || pick === e.tags.kurzuskod;
       });
-      dp.events.add(e);
-      dp.clearSelection();
+      if (initialized) dp.update(); // init() előtt még nem lehet frissíteni
     };
-
-    // Események generálása
-    const events = processCourses(courses);
-    const deletedEvents = JSON.parse(
-      localStorage.getItem("deletedEvents") || "[]"
-    );
-
-    dp.events.list = events.filter((e) => {
-      return !deletedEvents.some(
-        (de) =>
-          de.tags.tantargy === e.tags.tantargy &&
-          de.tags.kurzuskod === e.tags.kurzuskod
-      );
-    });
 
     dp.onEventClick = function (args) {
-      const clickedEvent = args.e;
-      const clickedTantargy = clickedEvent.data.tags.tantargy;
-      const clickedId = clickedEvent.id();
-      const clickedBarColor = clickedEvent.data.barColor;
-      const clickedTags = clickedEvent.data.tags;
+      const t = args.e.data.tags;
+      if (!t) return;
 
-      if (localStorage.getItem(clickedTantargy)) {
-        const eventsToRestore = JSON.parse(
-          localStorage.getItem(clickedTantargy)
-        )["deletedEvents"];
-        localStorage.removeItem(clickedTantargy);
-
-        eventsToRestore.forEach((event) => {
-          if (event.tags) {
-            event.text = `#${event.tags.kurzuskod} - ${event.tags.tantargy}`;
-          }
-          dp.events.add(event);
-        });
-
-        clickedEvent.data.backColor = clickedEvent.data.originalColor || "";
-        clickedEvent.data.isSelected = false;
-        clickedEvent.data.fontColor = "black";
-        clickedEvent.text(
-          `#${clickedTags.kurzuskod} - ${clickedTags.tantargy}`
-        );
-        dp.events.update(clickedEvent);
+      if (selected[t.tantargy] === t.kurzuskod) {
+        delete selected[t.tantargy]; // kiválasztás visszavonása
       } else {
-        const eventsToStore = dp.events.list.filter(
-          (event) =>
-            event.tags.tantargy === clickedTantargy && event.id !== clickedId
-        );
-        localStorage.setItem(
-          clickedTantargy,
-          JSON.stringify({
-            clickedEvent: clickedEvent.data,
-            clickedColor: clickedBarColor,
-            deletedEvents: eventsToStore,
-          })
-        );
-
-        dp.events.list = dp.events.list.filter(
-          (ev) => !(ev.tags.tantargy === clickedTantargy && ev.id !== clickedId)
-        );
-
-        clickedEvent.data.originalColor = clickedEvent.data.backColor;
-        clickedEvent.data.backColor = clickedBarColor;
-        clickedEvent.data.isSelected = true;
-        clickedEvent.text(
-          `#${clickedTags.kurzuskod} - ${clickedTags.tantargy}\n${clickedTags.tanar}`
-        );
-        dp.events.update(clickedEvent);
+        selected[t.tantargy] = t.kurzuskod;
       }
+      localStorage.setItem(KEY_SELECTED, JSON.stringify(selected));
+      renderEvents();
+      buildCourseList();
     };
 
+    renderEvents();
     dp.init();
+    initialized = true;
 
     // ----------------------------
-    // Lista kirajzolása
+    // Kurzuslista kirajzolása
     // ----------------------------
+    const buildCourseList = () => {
     const coursesDiv = document.getElementById("courses");
     if (coursesDiv) {
       coursesDiv.innerHTML = "";
       const grouped = {};
-      events.forEach((e) => {
+      allEvents.forEach((e) => {
         if (!grouped[e.tags.tantargy]) {
           grouped[e.tags.tantargy] = [];
         }
@@ -263,162 +311,129 @@ const Calendar = ({ courses, errorCodes }) => {
       });
 
       Object.entries(grouped).forEach(([tantargy, lista]) => {
+        const group = document.createElement("div");
+        group.className = "course-group";
+        coursesDiv.appendChild(group);
+
         const title = document.createElement("h3");
-        title.textContent = tantargy;
-        coursesDiv.appendChild(title);
+        title.className = "course-group__title";
+        const swatch = document.createElement("span");
+        swatch.className = "swatch";
+        swatch.style.background = lista[0]?.barColor || "transparent";
+        title.appendChild(swatch);
+        title.appendChild(document.createTextNode(tantargy));
+        group.appendChild(title);
 
         lista.forEach((event) => {
+          const key = courseKey(event.tags.tantargy, event.tags.kurzuskod);
+          const isSelected = selected[event.tags.tantargy] === event.tags.kurzuskod;
+
           const wrapper = document.createElement("label");
-          wrapper.style.display = "block";
+          wrapper.className = "course-option";
 
           const checkbox = document.createElement("input");
           checkbox.type = "checkbox";
           checkbox.value = event.tags.kurzuskod;
-          checkbox.checked = true;
+          checkbox.checked = isSelected || !readHidden().includes(key);
+          wrapper.classList.toggle("course-option--off", !checkbox.checked);
 
-          // Betöltéskor beállítjuk a checked értéket a localStorage alapján
-          const deletedEvents = JSON.parse(
-            localStorage.getItem("deletedEvents") || "[]"
-          );
-          if (
-            deletedEvents.some(
-              (ev) =>
-                ev.tags.tantargy === event.tags.tantargy &&
-                ev.tags.kurzuskod === event.tags.kurzuskod
-            )
-          ) {
-            checkbox.checked = false;
+          // A naptárban kiválasztott kurzust itt nem lehet kikapcsolni,
+          // csak a naptárban, újbóli kattintással.
+          if (isSelected) {
+            wrapper.classList.add("course-option--selected");
+            checkbox.disabled = true;
+            wrapper.title =
+              "Ez a kurzus a naptárban ki van választva – a visszavonás is ott, újbóli kattintással történik.";
           }
 
           checkbox.addEventListener("change", () => {
-            let deletedEvents = JSON.parse(
-              localStorage.getItem("deletedEvents") || "[]"
-            );
-            const subjectKey = event.tags.tantargy;
-            // Lekérjük a subjectKey adatait
-            let subjectData = JSON.parse(
-              localStorage.getItem(subjectKey) || "null"
-            );
-            if (!checkbox.checked) {
-              // Hozzáadjuk a törölt eseményekhez
-              deletedEvents.push(event);
-              dp.events.list = dp.events.list.filter(
-                (ev) =>
-                  !(
-                    ev.tags.tantargy === event.tags.tantargy &&
-                    ev.tags.kurzuskod === event.tags.kurzuskod
-                  )
-              );
-              if (subjectData) {
-                subjectData.deletedEvents = subjectData.deletedEvents.filter(
-                  (ev) =>
-                    !(
-                      ev.tags.tantargy === event.tags.tantargy &&
-                      ev.tags.kurzuskod === event.tags.kurzuskod
-                    )
-                );
-
-                localStorage.setItem(subjectKey, JSON.stringify(subjectData));
-              }
-            } else {
-              // Kivesszük a törölt események közül
-              deletedEvents = deletedEvents.filter(
-                (ev) =>
-                  !(
-                    ev.tags.tantargy === event.tags.tantargy &&
-                    ev.tags.kurzuskod === event.tags.kurzuskod
-                  )
-              );
-
-              if (!subjectData) {
-                // Ha nincs ilyen tárgy, létrehozzuk az eventet
-                dp.events.add(event);
-              } else {
-                // Hozzáadjuk az eseményt a tárgy saját deletedEvents listájához
-                subjectData.deletedEvents.push(event);
-                localStorage.setItem(subjectKey, JSON.stringify(subjectData));
-              }
+            wrapper.classList.toggle("course-option--off", !checkbox.checked);
+            const hidden = readHidden();
+            if (checkbox.checked) {
+              writeHidden(hidden.filter((k) => k !== key));
+            } else if (!hidden.includes(key)) {
+              writeHidden([...hidden, key]);
             }
-            localStorage.setItem(
-              "deletedEvents",
-              JSON.stringify(deletedEvents)
-            );
-            dp.update();
+            renderEvents();
           });
 
+          const code = document.createElement("span");
+          code.className = "course-option__code";
+          code.textContent = `#${event.tags.kurzuskod}`;
+
           const text = document.createTextNode(
-            ` #${event.tags.kurzuskod} - ${event.tags.tanar}`
+            ` ${event.tags.tanar || "oktató nincs megadva"}`
           );
 
           wrapper.appendChild(checkbox);
+          wrapper.appendChild(code);
           wrapper.appendChild(text);
-          coursesDiv.appendChild(wrapper);
+
+          if (isSelected) {
+            const badge = document.createElement("span");
+            badge.className = "course-badge";
+            badge.textContent = "kiválasztva";
+            wrapper.appendChild(badge);
+          }
+
+          group.appendChild(wrapper);
         });
       });
 
-      // Nem szereplő kurzusok (nincs időpont)
+      if (Object.keys(grouped).length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "course-empty";
+        empty.textContent =
+          "Még nincs betöltött kurzus. Indíts egy lekérdezést fentebb.";
+        coursesDiv.appendChild(empty);
+      }
+    }
+    };
+
+    buildCourseList();
+
+    // ----------------------------
+    // Időpont nélküli kurzusok
+    // ----------------------------
+    const unscheduledDiv = document.getElementById("unscheduled");
+    if (unscheduledDiv) {
+      unscheduledDiv.innerHTML = "";
+
       const scheduledSet = new Set(
-        events.map((e) => `${e.tags.tantargy}#${e.tags.kurzuskod}`)
+        allEvents.map((e) => courseKey(e.tags.tantargy, e.tags.kurzuskod))
       );
+      const hidden = readHidden();
 
       const unscheduled = courses.filter((c) => {
-        const kodokParts = c.kodok.split("-");
-        const kurzuskod = parseInt(kodokParts[2].split(" ")[0]);
-
-        // Tantárgy neve + típus meghatározása
-        let tantargyNev = c.tantargy;
-        let tipus = "";
-
-        if (tantargyNev.endsWith("Ea+Gy")) {
-          if (kurzuskod >= 90) {
-            tipus = "Ea";
-          } else {
-            tipus = "Gy";
-          }
-          tantargyNev = tantargyNev.replace("Ea+Gy", tipus);
-        } else if (!tantargyNev.endsWith("Ea") && !tantargyNev.endsWith("Gy")) {
-          if (kurzuskod >= 90) {
-            tipus = "Ea";
-          } else {
-            tipus = "Gy";
-          }
-          tantargyNev += " " + tipus;
-        }
-        const keresettKulcs = `${tantargyNev}#${kurzuskod}`;
-
-        const deletedEvents = JSON.parse(
-          localStorage.getItem("deletedEvents") || "[]"
-        );
-
-        return (
-          !scheduledSet.has(keresettKulcs) &&
-          !deletedEvents.some(
-            (de) =>
-              de.tags.tantargy === tantargyNev &&
-              de.tags.kurzuskod === kurzuskod
-          )
-        );
+        const kurzuskod = parseInt(c.kodok.split("-")[2].split(" ")[0]);
+        const key = courseKey(courseLabel(c.tantargy, kurzuskod), kurzuskod);
+        return !scheduledSet.has(key) && !hidden.includes(key);
       });
 
       if (unscheduled.length > 0) {
-        const noTimeTitle = document.createElement("h1");
-        noTimeTitle.textContent = "Időpont nincs meghatározva:";
-        coursesDiv.appendChild(noTimeTitle);
+        const panel = document.createElement("div");
+        panel.className = "unscheduled";
+
+        const noTimeTitle = document.createElement("h3");
+        noTimeTitle.textContent = "Időpont nélküli kurzusok";
+        panel.appendChild(noTimeTitle);
+
+        const hint = document.createElement("p");
+        hint.textContent =
+          "Ezekhez a tanrend nem ad meg időpontot, ezért nem kerültek a naptárba.";
+        panel.appendChild(hint);
 
         unscheduled.forEach((course) => {
-          const kodokParts = course.kodok.split("-");
-          const kurzuskod = parseInt(kodokParts[2].split(" ")[0]);
-
-          const wrapper = document.createElement("label");
-          wrapper.style.display = "block";
-
-          const text = document.createTextNode(
-            ` #${kurzuskod} - ${course.tantargy} - ${course.tanar}`
-          );
-
-          wrapper.appendChild(text);
-          coursesDiv.appendChild(wrapper);
+          const kurzuskod = parseInt(course.kodok.split("-")[2].split(" ")[0]);
+          const row = document.createElement("div");
+          row.className = "unscheduled__item";
+          row.textContent = `#${kurzuskod} · ${course.tantargy} · ${
+            course.tanar || "oktató nincs megadva"
+          }`;
+          panel.appendChild(row);
         });
+
+        unscheduledDiv.appendChild(panel);
       }
     }
 
@@ -432,17 +447,35 @@ const Calendar = ({ courses, errorCodes }) => {
 
   useEffect(() => {
     const errorCodesDiv = document.getElementById("errorCodes");
-    if (errorCodesDiv && errorCodes.length > 0) {
-      errorCodesDiv.innerHTML = "";
-      const noCodesTitle = document.createElement("h1");
-      noCodesTitle.textContent = "Alábbi kurzusok nem találhatóak:";
-      errorCodesDiv.appendChild(noCodesTitle);
-      errorCodes.forEach((code) => {
-        const codeElement = document.createElement("div");
-        codeElement.textContent = code;
-        errorCodesDiv.appendChild(codeElement);
+    if (!errorCodesDiv) return;
+    errorCodesDiv.innerHTML = "";
+    if (errorCodes.length === 0) return;
+
+    const panel = document.createElement("div");
+    panel.className = "error-panel";
+
+    const noCodesTitle = document.createElement("h3");
+    noCodesTitle.textContent = "Nem talált kurzuskódok";
+    panel.appendChild(noCodesTitle);
+
+    const hint = document.createElement("p");
+    hint.textContent =
+      "Ellenőrizd a kód helyesírását és azt, hogy a kiválasztott félévben meg van-e hirdetve.";
+    panel.appendChild(hint);
+
+    const list = document.createElement("div");
+    list.className = "code-list";
+    [...errorCodes]
+      .sort((a, b) => a.localeCompare(b, "hu"))
+      .forEach((code) => {
+        const item = document.createElement("span");
+        item.className = "code-item";
+        item.textContent = code;
+        list.appendChild(item);
       });
-    }
+    panel.appendChild(list);
+
+    errorCodesDiv.appendChild(panel);
   }, [errorCodes]);
 
   return (
@@ -450,8 +483,15 @@ const Calendar = ({ courses, errorCodes }) => {
       <div className="calendar-wrapper">
         <div id="dp"></div>
       </div>
+
+      <div id="unscheduled"></div>
+
+      <h3 className="section-title">Kurzuscsoportok</h3>
+      <p className="card__hint">
+        Tárgyanként az összes meghirdetett csoport. A pipát kivéve a kurzus
+        eltűnik a naptárból; a beállítás a böngészőben megmarad.
+      </p>
       <div id="courses"></div>
-      <div id="errorCodes"></div>
     </div>
   );
 };
