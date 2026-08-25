@@ -492,6 +492,8 @@ const Calendar = ({ courses, errorCodes }) => {
         eltűnik a naptárból; a beállítás a böngészőben megmarad.
       </p>
       <div id="courses"></div>
+
+      <div id="errorCodes"></div>
     </div>
   );
 };
