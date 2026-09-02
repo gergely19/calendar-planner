@@ -53,8 +53,8 @@ function writeHidden(list) {
 
 // A tanrend többféle alakban jelöli a típust: "Ea", "Ea.", "Ea+Gy", vagy sehogy.
 // Egységesítjük: a név mindig pontosan egy " Ea" vagy " Gy" végződést kap.
-function courseLabel(tantargy, kurzuskod) {
-  const suffix = kurzuskod >= 90 ? "Ea" : "Gy";
+function courseLabel(tantargy, isEloadas) {
+  const suffix = isEloadas ? "Ea" : "Gy";
   let name = (tantargy || "").replace("Ea+GY", "Ea+Gy");
 
   if (name.includes("Ea+Gy")) {
@@ -65,6 +65,60 @@ function courseLabel(tantargy, kurzuskod) {
   name = name.replace(/[\s.]+(Ea|Gy)\.?\s*$/i, "").trim();
 
   return `${name} ${suffix}`;
+}
+
+function parseKodok(kodokStr) {
+  const str = (kodokStr || "").trim();
+  // pl. "IPM-22fpiIFG-1 (gyakorlat)" vagy "ELTE-OI-AI-90 (előadás)"
+  const match = str.match(/^(.+)-(\d+)(?:\s*\((.*?)\))?$/);
+  if (match) {
+    return {
+      targykod: match[1].trim(),
+      kurzuskod: parseInt(match[2], 10),
+      tipus: (match[3] || "").trim(),
+    };
+  }
+  const parts = str.split(/\s*\(/);
+  const codePart = parts[0].trim();
+  const tipus = parts[1] ? parts[1].replace(/\)$/, "").trim() : "";
+  const lastHyphenIndex = codePart.lastIndexOf("-");
+  if (lastHyphenIndex !== -1) {
+    const targykod = codePart.substring(0, lastHyphenIndex).trim();
+    const kurzuskod = parseInt(codePart.substring(lastHyphenIndex + 1), 10) || 0;
+    return { targykod, kurzuskod, tipus };
+  }
+  return { targykod: str, kurzuskod: 0, tipus: "" };
+}
+
+function isEloadasCourse(item, parsed) {
+  const tipus = (parsed.tipus || "").toLowerCase();
+  if (tipus.includes("előadás") || tipus.includes("ea")) return true;
+  if (tipus.includes("gyakorlat") || tipus.includes("gy")) return false;
+
+  const tantargy = (item.tantargy || "").toLowerCase();
+  if (/\bea\.?\b/i.test(tantargy) || tantargy.includes("előadás")) return true;
+  if (/\bgy\.?\b/i.test(tantargy) || tantargy.includes("gyakorlat")) return false;
+
+  if (parsed.targykod) {
+    if (parsed.targykod.endsWith("E") || parsed.targykod.endsWith("Ea")) return true;
+    if (parsed.targykod.endsWith("G") || parsed.targykod.endsWith("Gy")) return false;
+  }
+
+  return parsed.kurzuskod >= 90;
+}
+
+function parseTimeSlots(idopontStr) {
+  const slots = [];
+  if (!idopontStr) return slots;
+  const regex = /(Hétfő|Hétfo|Kedd|Szerda|Csütörtök|Csutortok|Péntek|Pentek)\s+(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/gi;
+  let match;
+  while ((match = regex.exec(idopontStr)) !== null) {
+    const dayStr = match[1];
+    const [startHour, startMin] = match[2].split(":").map(Number);
+    const [endHour, endMin] = match[3].split(":").map(Number);
+    slots.push({ dayStr, startHour, startMin, endHour, endMin });
+  }
+  return slots;
 }
 
 function escapeHtml(text) {
@@ -89,22 +143,26 @@ function tint(hex, amount = 0.62) {
   return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
 }
 
-function getDay(day) {
+function getDay(dayStr) {
+  const norm = (dayStr || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
   let i = 0;
-  switch (day) {
-    case "Hétfo":
+  switch (norm) {
+    case "hetfo":
       i = 1;
       break;
-    case "Kedd":
+    case "kedd":
       i = 2;
       break;
-    case "Szerda":
+    case "szerda":
       i = 3;
       break;
-    case "Csütörtök":
+    case "csutortok":
       i = 4;
       break;
-    case "Péntek":
+    case "pentek":
       i = 5;
       break;
     default:
@@ -115,17 +173,6 @@ function getDay(day) {
 }
 
 function processCourses(courses) {
-  const kurzusok = { eloadas: [], gyakorlat: [] };
-  courses.forEach((item) => {
-    const kurzuskod = parseInt(item.kodok.split("-")[2].split(" ")[0]);
-    if (kurzuskod >= 90) {
-      kurzusok.eloadas.push(item);
-    } else {
-      kurzusok.gyakorlat.push(item);
-    }
-  });
-
-  // a színek mentve vannak, így újratöltés vagy új lekérdezés után sem változnak
   const colorNameMapping = readJson(KEY_COLORS, {});
   let colorsChanged = false;
   function getColorForName(name) {
@@ -137,40 +184,39 @@ function processCourses(courses) {
   }
 
   const events = [];
-  ["eloadas", "gyakorlat"].forEach((type) => {
-    kurzusok[type].forEach((item) => {
-      const kodokParts = item.kodok.split("-");
-      const kurzuskod = parseInt(kodokParts[2].split(" ")[0]);
-      const targykod = item.kodok.split(" ")[0].replace(/-\d+$/, "");
-      if (
-        !(targykod in window.errors) ||
-        !window.errors[targykod].includes(kurzuskod)
-      ) {
-        const idopontParts = item.idopont.split(" ");
-        if (idopontParts.length > 1) {
-          const day = idopontParts[0];
-          const [start, end] = idopontParts[1].split("-");
-          const [startHour, startMin] = start.split(":");
-          const [endHour, endMin] = end.split(":");
-          const tantargyName = courseLabel(item.tantargy, kurzuskod);
 
-          const color = getColorForName(tantargyName);
-          events.push({
-            start: getDay(day).addHours(startHour).addMinutes(startMin),
-            end: getDay(day).addHours(endHour).addMinutes(endMin),
-            id: window.DayPilot.guid(),
-            text: "#" + kurzuskod + " - " + tantargyName,
-            barColor: color,
-            backColor: tint(color),
-            fontColor: "#17232e",
-            tags: {
-              tanar: item.tanar,
-              tantargy: tantargyName,
-              kurzuskod: kurzuskod,
-            },
-          });
-        }
-      }
+  courses.forEach((item) => {
+    const parsed = parseKodok(item.kodok);
+    const isEa = isEloadasCourse(item, parsed);
+    const kurzuskod = parsed.kurzuskod;
+    const targykod = parsed.targykod;
+
+    if (
+      targykod in window.errors &&
+      window.errors[targykod].includes(kurzuskod)
+    ) {
+      return;
+    }
+
+    const slots = parseTimeSlots(item.idopont);
+    const tantargyName = courseLabel(item.tantargy, isEa);
+    const color = getColorForName(tantargyName);
+
+    slots.forEach((slot) => {
+      events.push({
+        start: getDay(slot.dayStr).addHours(slot.startHour).addMinutes(slot.startMin),
+        end: getDay(slot.dayStr).addHours(slot.endHour).addMinutes(slot.endMin),
+        id: window.DayPilot.guid(),
+        text: "#" + kurzuskod + " - " + tantargyName,
+        barColor: color,
+        backColor: tint(color),
+        fontColor: "#17232e",
+        tags: {
+          tanar: item.tanar,
+          tantargy: tantargyName,
+          kurzuskod: kurzuskod,
+        },
+      });
     });
   });
 
@@ -299,95 +345,97 @@ const Calendar = ({ courses, errorCodes }) => {
     // Kurzuslista kirajzolása
     // ----------------------------
     const buildCourseList = () => {
-    const coursesDiv = document.getElementById("courses");
-    if (coursesDiv) {
-      coursesDiv.innerHTML = "";
-      const grouped = {};
-      allEvents.forEach((e) => {
-        if (!grouped[e.tags.tantargy]) {
-          grouped[e.tags.tantargy] = [];
-        }
-        grouped[e.tags.tantargy].push(e);
-      });
-
-      Object.entries(grouped).forEach(([tantargy, lista]) => {
-        const group = document.createElement("div");
-        group.className = "course-group";
-        coursesDiv.appendChild(group);
-
-        const title = document.createElement("h3");
-        title.className = "course-group__title";
-        const swatch = document.createElement("span");
-        swatch.className = "swatch";
-        swatch.style.background = lista[0]?.barColor || "transparent";
-        title.appendChild(swatch);
-        title.appendChild(document.createTextNode(tantargy));
-        group.appendChild(title);
-
-        lista.forEach((event) => {
-          const key = courseKey(event.tags.tantargy, event.tags.kurzuskod);
-          const isSelected = selected[event.tags.tantargy] === event.tags.kurzuskod;
-
-          const wrapper = document.createElement("label");
-          wrapper.className = "course-option";
-
-          const checkbox = document.createElement("input");
-          checkbox.type = "checkbox";
-          checkbox.value = event.tags.kurzuskod;
-          checkbox.checked = isSelected || !readHidden().includes(key);
-          wrapper.classList.toggle("course-option--off", !checkbox.checked);
-
-          // A naptárban kiválasztott kurzust itt nem lehet kikapcsolni,
-          // csak a naptárban, újbóli kattintással.
-          if (isSelected) {
-            wrapper.classList.add("course-option--selected");
-            checkbox.disabled = true;
-            wrapper.title =
-              "Ez a kurzus a naptárban ki van választva – a visszavonás is ott, újbóli kattintással történik.";
+      const coursesDiv = document.getElementById("courses");
+      if (coursesDiv) {
+        coursesDiv.innerHTML = "";
+        const grouped = {};
+        allEvents.forEach((e) => {
+          if (!grouped[e.tags.tantargy]) {
+            grouped[e.tags.tantargy] = [];
           }
-
-          checkbox.addEventListener("change", () => {
-            wrapper.classList.toggle("course-option--off", !checkbox.checked);
-            const hidden = readHidden();
-            if (checkbox.checked) {
-              writeHidden(hidden.filter((k) => k !== key));
-            } else if (!hidden.includes(key)) {
-              writeHidden([...hidden, key]);
-            }
-            renderEvents();
-          });
-
-          const code = document.createElement("span");
-          code.className = "course-option__code";
-          code.textContent = `#${event.tags.kurzuskod}`;
-
-          const text = document.createTextNode(
-            ` ${event.tags.tanar || "oktató nincs megadva"}`
-          );
-
-          wrapper.appendChild(checkbox);
-          wrapper.appendChild(code);
-          wrapper.appendChild(text);
-
-          if (isSelected) {
-            const badge = document.createElement("span");
-            badge.className = "course-badge";
-            badge.textContent = "kiválasztva";
-            wrapper.appendChild(badge);
+          if (!grouped[e.tags.tantargy].some((item) => item.tags.kurzuskod === e.tags.kurzuskod)) {
+            grouped[e.tags.tantargy].push(e);
           }
-
-          group.appendChild(wrapper);
         });
-      });
 
-      if (Object.keys(grouped).length === 0) {
-        const empty = document.createElement("p");
-        empty.className = "course-empty";
-        empty.textContent =
-          "Még nincs betöltött kurzus. Indíts egy lekérdezést fentebb.";
-        coursesDiv.appendChild(empty);
+        Object.entries(grouped).forEach(([tantargy, lista]) => {
+          const group = document.createElement("div");
+          group.className = "course-group";
+          coursesDiv.appendChild(group);
+
+          const title = document.createElement("h3");
+          title.className = "course-group__title";
+          const swatch = document.createElement("span");
+          swatch.className = "swatch";
+          swatch.style.background = lista[0]?.barColor || "transparent";
+          title.appendChild(swatch);
+          title.appendChild(document.createTextNode(tantargy));
+          group.appendChild(title);
+
+          lista.forEach((event) => {
+            const key = courseKey(event.tags.tantargy, event.tags.kurzuskod);
+            const isSelected = selected[event.tags.tantargy] === event.tags.kurzuskod;
+
+            const wrapper = document.createElement("label");
+            wrapper.className = "course-option";
+
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.value = event.tags.kurzuskod;
+            checkbox.checked = isSelected || !readHidden().includes(key);
+            wrapper.classList.toggle("course-option--off", !checkbox.checked);
+
+            // A naptárban kiválasztott kurzust itt nem lehet kikapcsolni,
+            // csak a naptárban, újbóli kattintással.
+            if (isSelected) {
+              wrapper.classList.add("course-option--selected");
+              checkbox.disabled = true;
+              wrapper.title =
+                "Ez a kurzus a naptárban ki van választva – a visszavonás is ott, újbóli kattintással történik.";
+            }
+
+            checkbox.addEventListener("change", () => {
+              wrapper.classList.toggle("course-option--off", !checkbox.checked);
+              const hidden = readHidden();
+              if (checkbox.checked) {
+                writeHidden(hidden.filter((k) => k !== key));
+              } else if (!hidden.includes(key)) {
+                writeHidden([...hidden, key]);
+              }
+              renderEvents();
+            });
+
+            const code = document.createElement("span");
+            code.className = "course-option__code";
+            code.textContent = `#${event.tags.kurzuskod}`;
+
+            const text = document.createTextNode(
+              ` ${event.tags.tanar || "oktató nincs megadva"}`
+            );
+
+            wrapper.appendChild(checkbox);
+            wrapper.appendChild(code);
+            wrapper.appendChild(text);
+
+            if (isSelected) {
+              const badge = document.createElement("span");
+              badge.className = "course-badge";
+              badge.textContent = "kiválasztva";
+              wrapper.appendChild(badge);
+            }
+
+            group.appendChild(wrapper);
+          });
+        });
+
+        if (Object.keys(grouped).length === 0) {
+          const empty = document.createElement("p");
+          empty.className = "course-empty";
+          empty.textContent =
+            "Még nincs betöltött kurzus. Indíts egy lekérdezést fentebb.";
+          coursesDiv.appendChild(empty);
+        }
       }
-    }
     };
 
     buildCourseList();
@@ -405,8 +453,9 @@ const Calendar = ({ courses, errorCodes }) => {
       const hidden = readHidden();
 
       const unscheduled = courses.filter((c) => {
-        const kurzuskod = parseInt(c.kodok.split("-")[2].split(" ")[0]);
-        const key = courseKey(courseLabel(c.tantargy, kurzuskod), kurzuskod);
+        const parsed = parseKodok(c.kodok);
+        const isEa = isEloadasCourse(c, parsed);
+        const key = courseKey(courseLabel(c.tantargy, isEa), parsed.kurzuskod);
         return !scheduledSet.has(key) && !hidden.includes(key);
       });
 
@@ -424,7 +473,8 @@ const Calendar = ({ courses, errorCodes }) => {
         panel.appendChild(hint);
 
         unscheduled.forEach((course) => {
-          const kurzuskod = parseInt(course.kodok.split("-")[2].split(" ")[0]);
+          const parsed = parseKodok(course.kodok);
+          const kurzuskod = parsed.kurzuskod;
           const row = document.createElement("div");
           row.className = "unscheduled__item";
           row.textContent = `#${kurzuskod} · ${course.tantargy} · ${
