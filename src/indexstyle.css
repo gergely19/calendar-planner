@@ -711,6 +711,79 @@ button.secondary:hover:not(:disabled) {
   background: none;
 }
 
+/* Kijelölés, másolás, törlés a kódcimkéken */
+
+.tag-input--selecting {
+  border-style: dashed;
+  border-color: var(--brand);
+  background: #fbfcfd;
+}
+
+.tag-input--selecting .tag__text {
+  cursor: pointer;
+}
+
+/* kijelölés közben az aláhúzás szerkesztést sugallna, ezért itt csak
+   háttérszín jelzi, hogy a címke kattintható */
+.tag-input--selecting .tag__text:hover:not(:disabled) {
+  text-decoration: none;
+  background: #dcecef;
+}
+
+.tag--picked {
+  background: #dcecef;
+  border-color: var(--brand);
+  color: var(--brand-dark);
+}
+
+.tag--picked .tag__text {
+  font-weight: 700;
+}
+
+.tag-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 6px;
+}
+
+.tag-tools__count {
+  font-size: 0.8rem;
+  color: var(--text-soft);
+}
+
+.tag-tools__flash {
+  font-size: 0.8rem;
+  color: var(--brand);
+}
+
+.link-btn {
+  padding: 2px 4px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--brand);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-btn:hover:not(:disabled) {
+  background: #eaeff1;
+  color: var(--brand-dark);
+}
+
+.link-btn--danger {
+  color: var(--danger);
+}
+
+.link-btn--danger:hover:not(:disabled) {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
 /* Névkeresés találatai */
 
 .results {
