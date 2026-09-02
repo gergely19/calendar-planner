@@ -22,11 +22,10 @@ import {
   sameCode,
   groupOfCode,
   newGroupId,
-  codeTail,
   codeHead,
   commonPrefixLength,
   isPlausibleSuggestion,
-  MIN_TAIL_QUERY,
+  suggestionFragments,
 } from "./lib/tanrend";
 import "./indexstyle.css";
 
@@ -333,33 +332,36 @@ function App() {
       let tipsDone = 0;
 
       for (const code of errorCodes) {
-        const tail = codeTail(code);
         const rejected = activeDismissed[code.toLowerCase()] || [];
 
-        if (tail.length >= MIN_TAIL_QUERY && !isCovered(code)) {
-          try {
-            const response = await fetch(
-              tanrendUrl("keres_kod_azon", tail, semester)
-            );
-            if (response.ok) {
+        // Előre az kerül, aminek az évszámmal együtt is stimmel az eleje;
+        // utána a hosszabb közös kezdet, végül a hasonlóbb hossz dönt
+        // (IPM-24ATIDSEG közelebb van, mint IPM-24ATCTDSEG).
+        const head = codeHead(code).toLowerCase();
+        const headScore = (kod) =>
+          head.length > 0 && kod.toLowerCase().startsWith(head) ? 1 : 0;
+
+        if (!isCovered(code)) {
+          // A leghosszabb végződéssel kezdjük, és az első értelmes találatnál
+          // megállunk – így a legpontosabb egyezés nyer.
+          for (const fragment of suggestionFragments(code)) {
+            try {
+              const response = await fetch(
+                tanrendUrl("keres_kod_azon", fragment, semester)
+              );
+              if (!response.ok) continue;
+
               const rows = parseCoursesFromHtml(await response.text());
               const found = new Map();
 
               rows.forEach((row) => {
                 const { targykod } = parseKodok(row.kodok);
                 if (!targykod) return;
-                if (!isPlausibleSuggestion(code, targykod)) return;
+                if (!isPlausibleSuggestion(code, targykod, fragment)) return;
                 if (known.has(targykod.toLowerCase())) return;
                 if (rejected.includes(targykod.toLowerCase())) return;
                 if (!found.has(targykod)) found.set(targykod, row.tantargy || "");
               });
-
-              // Előre az kerül, aminek az évszámmal együtt is stimmel az
-              // eleje; utána a hosszabb közös kezdet, végül a hasonlóbb hossz
-              // dönt (IPM-24ATIDSEG közelebb van, mint IPM-24ATCTDSEG).
-              const head = codeHead(code).toLowerCase();
-              const headScore = (kod) =>
-                head.length > 0 && kod.toLowerCase().startsWith(head) ? 1 : 0;
 
               const list = [...found.entries()]
                 .map(([kod, nev]) => ({ kod, nev }))
@@ -373,10 +375,13 @@ function App() {
                 )
                 .slice(0, 3);
 
-              if (list.length > 0) suggestions[code] = list;
+              if (list.length > 0) {
+                suggestions[code] = list;
+                break;
+              }
+            } catch (err) {
+              console.error("Tippkeresési hiba:", err);
             }
-          } catch (err) {
-            console.error("Tippkeresési hiba:", err);
           }
         }
 

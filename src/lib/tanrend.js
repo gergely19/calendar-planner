@@ -118,9 +118,11 @@ export function sameName(a, b) {
 // IPM-22fpiDNDEG (nincs ilyen) -> "DNDEG" -> IPM-22fmiDNDEG.
 
 // A kód végén álló csupa nagybetűs/számos rész a tárgy azonosítója.
+// A vezető számjegyek nem tartoznak hozzá: azok az évszámot jelölik, és
+// kisbetűs szakjelölés híján beleragadnának (IPM-24ATDNDEG -> ATDNDEG).
 export function codeTail(code) {
   const match = (code || "").match(/[A-Z0-9ÁÉÍÓÖŐÚÜŰ]+$/);
-  return match ? match[0] : "";
+  return match ? match[0].replace(/^\d+/, "") : "";
 }
 
 // A kód eleje: ami a közepén álló, kisbetűs szakjelölés előtt áll.
@@ -149,18 +151,38 @@ export const MIN_TAIL_QUERY = 2;
 // Az eleje ennél rövidebb már nem jelent igazi egyezést.
 export const MIN_HEAD_LENGTH = 3;
 
-// Mikor tekintünk egy kódot ugyanannak a tárgynak?
+// A kód közepe nagybetűs is lehet (IPM-24ATDNDEG), ilyenkor a végződésbe
+// beleragad: az "ATDNDEG"-re nincs találat, a "DNDEG"-re viszont van. Ezért a
+// keresést a teljes végződéssel kezdjük, és balról rövidítve próbálkozunk
+// tovább, amíg értelmes találat nem jön.
+export function suggestionFragments(code) {
+  const tail = codeTail(code);
+  if (!tail) return [];
+
+  // rövid végződést nem rövidítünk tovább, mert az már túl sok szemetet hozna
+  const shortest = Math.max(MIN_TAIL_QUERY, Math.min(tail.length, MIN_TAIL_LENGTH));
+
+  const list = [];
+  for (let len = tail.length; len >= shortest; len--) {
+    list.push(tail.slice(tail.length - len));
+  }
+  return list.slice(0, 6);
+}
+
+// Mikor tekintünk egy kódot ugyanannak a tárgynak? A `fragment` a keresésnél
+// épp használt végződés.
 //   a) elég hosszú, azonos végződés
 //      (IPM-22fmiPETEG -> IPM-24fkbPETEG)
 //   b) az eleje és a vége is egyezik, csak a közepe más – az évszám itt
-//      eltérhet, mert az csak a tantervet jelöli
-//      (IPM-22fpiPME -> IPM-22AUTPME, IPM-22fpiDSEG -> IPM-24ATIDSEG)
-export function isPlausibleSuggestion(failedCode, candidate) {
+//      eltérhet mindkét irányba, mert az csak a tantervet jelöli
+//      (IPM-22fpiPME -> IPM-22AUTPME, IPM-22fpiDSEG -> IPM-24ATIDSEG,
+//       IPM-24ATDNDEG -> IPM-22fmiDNDEG)
+export function isPlausibleSuggestion(failedCode, candidate, fragment) {
   const failed = (failedCode || "").toLowerCase();
   const other = (candidate || "").toLowerCase();
   if (!other || other === failed) return false;
 
-  const tail = codeTail(failedCode).toLowerCase();
+  const tail = (fragment ?? codeTail(failedCode)).toLowerCase();
   if (!tail) return false;
 
   const prefix = codePrefix(failedCode).toLowerCase();
