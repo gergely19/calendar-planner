@@ -1182,3 +1182,30 @@ button.secondary:hover:not(:disabled) {
 .option-row strong {
   color: var(--text);
 }
+
+/* Lábléc */
+
+.site-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  margin-top: 8px;
+  padding: 20px 0 32px;
+  border-top: 1px solid var(--border);
+  color: var(--text-soft);
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+.site-footer a {
+  color: var(--brand);
+}
+
+.site-footer a:hover {
+  color: var(--brand-dark);
+}

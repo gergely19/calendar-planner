@@ -5,6 +5,7 @@ import NameSearch from "./components/NameSearch";
 import Calendar from "./components/Calendar";
 import InfoHint from "./components/InfoHint";
 import PairingModal from "./components/PairingModal";
+import Footer from "./components/Footer";
 import {
   SEMESTERS,
   KEY_GROUPS,
@@ -545,6 +546,8 @@ function App() {
           colorSeed={colorSeed}
         />
       </section>
+
+      <Footer />
 
       {pairingOpen && !loading && (
         <PairingModal
