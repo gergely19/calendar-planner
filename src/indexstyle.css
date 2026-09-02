@@ -279,22 +279,117 @@ button.secondary:hover:not(:disabled) {
   overflow-y: hidden;
 }
 
-#dp {
+.wk {
+  --wk-time-col: 58px;
+  --wk-hour: 60px;
+  position: relative;
   min-width: 900px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+  user-select: none;
 }
 
-.calendar_default_event_inner {
-  margin: 1px;
-  border: 1px solid rgba(0, 0, 0, 0.22) !important;
-  border-radius: 4px !important;
-  font-size: 12px !important;
-  padding: 3px 5px !important;
+.wk__head,
+.wk__body {
+  display: grid;
+  grid-template-columns: var(--wk-time-col) repeat(5, 1fr);
+}
+
+.wk__corner {
+  background: #f7f8f9;
+  border-bottom: 1px solid var(--border);
+}
+
+.wk__day {
+  padding: 7px 4px;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-soft);
+  background: #f7f8f9;
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.wk__time {
+  height: var(--wk-hour);
+  padding: 2px 6px 0 0;
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--text-soft);
+  /* az órajelzés a vonalhoz igazodik, ezért a doboz tetején ül */
+  line-height: 1;
+}
+
+.wk__col {
+  position: relative;
+  border-left: 1px solid var(--border);
+  /* félórás halvány és órás erősebb segédvonalak */
+  background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--wk-hour) / 2 - 1px),
+      #eef0f2 calc(var(--wk-hour) / 2 - 1px),
+      #eef0f2 calc(var(--wk-hour) / 2)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--wk-hour) - 1px),
+      var(--border) calc(var(--wk-hour) - 1px),
+      var(--border) var(--wk-hour)
+    );
+}
+
+.wk__event {
+  position: absolute;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  border-left-width: 4px;
+  border-radius: 4px;
+  padding: 3px 5px;
+  font-size: 12px;
+  line-height: 1.25;
+  color: #17232e;
+  cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
-.event-selected .calendar_default_event_inner {
-  border-color: rgba(0, 0, 0, 0.45) !important;
+.wk__event:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+.wk__event--selected {
+  border-color: rgba(0, 0, 0, 0.45);
   font-weight: 600;
+}
+
+.wk__event__sub {
+  font-size: 11px;
+  opacity: 0.75;
+  margin-top: 1px;
+}
+
+.wk__bubble__time {
+  font-weight: 600;
+  color: var(--brand);
+}
+
+.wk__bubble {
+  position: absolute;
+  z-index: 20;
+  max-width: 240px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+  pointer-events: none;
 }
 
 /* Kurzuslista */
