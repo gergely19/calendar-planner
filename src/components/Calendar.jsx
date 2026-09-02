@@ -1,6 +1,12 @@
 import React, { useMemo, useState } from "react";
 import WeekGrid from "./WeekGrid";
-import { parseKodok, groupOfCode, sameCode } from "../lib/tanrend";
+import InfoHint from "./InfoHint";
+import {
+  parseKodok,
+  groupOfCode,
+  sameCode,
+  KEY_COLORS,
+} from "../lib/tanrend";
 import "../indexstyle.css";
 
 let errors = window.errors || {};
@@ -19,7 +25,6 @@ errors  = {
 // localStorage kulcsok – minden felhasználói döntés itt marad meg újratöltés után is
 const KEY_HIDDEN = "deletedEvents"; // kikapcsolt (pipa nélküli) kurzusok
 const KEY_SELECTED = "selectedCourses"; // tárgyanként a kiválasztott kurzuskód
-const KEY_COLORS = "courseColors"; // tárgyanként a szín, hogy ne változzon
 
 function readJson(key, fallback) {
   try {
@@ -271,15 +276,25 @@ function processCourses(courses, groups) {
   return events;
 }
 
-const Calendar = ({ courses, errorCodes, groups }) => {
+const Calendar = ({
+  courses,
+  errorCodes,
+  groups,
+  suggestions = {},
+  onAcceptSuggestion,
+  colorSeed = 0,
+}) => {
   // Minden felhasználói döntés állapotként él, és a localStorage-ból indul.
   const [hidden, setHidden] = useState(readHidden);
   const [selected, setSelected] = useState(() => readJson(KEY_SELECTED, {}));
 
-  const allEvents = useMemo(
-    () => processCourses(courses, groups),
-    [courses, groups]
-  );
+  // A színek a tárgy nevéhez tapadnak és a localStorage-ban maradnak, hogy ne
+  // ugráljanak. A colorSeed a „Színek cseréje” gombra nő, ami – miután a tároló
+  // kiürült – új sorsolást kényszerít ki.
+  const allEvents = useMemo(() => {
+    void colorSeed;
+    return processCourses(courses, groups);
+  }, [courses, groups, colorSeed]);
 
   const isSelected = (tags) => matchesCourse(selected[tags.tantargy], tags);
 
@@ -393,6 +408,15 @@ const Calendar = ({ courses, errorCodes, groups }) => {
     };
   }, [errorCodes, groups, courses]);
 
+  // A tippes kódok külön, teljes szélességű sorokban olvashatók; a többi
+  // elfér egymás mellett kis címkeként.
+  const codesWithTips = sortedErrorCodes.filter(
+    (code) => (suggestions[code] || []).length > 0
+  );
+  const codesWithoutTips = sortedErrorCodes.filter(
+    (code) => (suggestions[code] || []).length === 0
+  );
+
   return (
     <div>
       <div className="calendar-wrapper">
@@ -406,11 +430,13 @@ const Calendar = ({ courses, errorCodes, groups }) => {
       <div id="unscheduled">
         {unscheduled.length > 0 && (
           <div className="unscheduled">
-            <h3>Időpont nélküli kurzusok</h3>
-            <p>
-              Ezekhez a tanrend nem ad meg időpontot, ezért nem kerültek a
-              naptárba.
-            </p>
+            <h3>
+              Időpont nélküli kurzusok
+              <InfoHint>
+                Ezekhez a tanrend nem ad meg időpontot, ezért nem kerültek a
+                naptárba.
+              </InfoHint>
+            </h3>
             {unscheduled.map((course, i) => {
               const parsed = parseKodok(course.kodok);
               const fullCode = parsed.targykod
@@ -428,12 +454,14 @@ const Calendar = ({ courses, errorCodes, groups }) => {
         )}
       </div>
 
-      <h3 className="section-title">Kurzuscsoportok</h3>
-      <p className="card__hint">
-        Tárgyanként az összes meghirdetett csoport, a név alatt a tárgykóddal. A
-        pipát kivéve a kurzus eltűnik a naptárból; a beállítás a böngészőben
-        megmarad.
-      </p>
+      <h3 className="section-title">
+        Kurzuscsoportok
+        <InfoHint>
+          Tárgyanként az összes meghirdetett csoport, a név alatt a tárgykóddal.
+          A pipát kivéve a kurzus eltűnik a naptárból; a beállítás a böngészőben
+          megmarad.
+        </InfoHint>
+      </h3>
       <div id="courses">
         {courseGroups.map(({ tantargy, lista, color, targykodok }) => (
           <div className="course-group" key={tantargy}>
@@ -503,18 +531,59 @@ const Calendar = ({ courses, errorCodes, groups }) => {
       <div id="errorCodes">
         {sortedErrorCodes.length > 0 && (
           <div className="error-panel">
-            <h3>Nem talált kurzuskódok</h3>
-            <p>
-              Ellenőrizd a kód helyesírását és azt, hogy a kiválasztott félévben
-              meg van-e hirdetve.
-            </p>
-            <div className="code-list">
-              {sortedErrorCodes.map((code) => (
-                <span className="code-item" key={code}>
-                  {code}
-                </span>
-              ))}
-            </div>
+            <h3>
+              Nem talált kurzuskódok
+              <InfoHint>
+                Ellenőrizd a kód helyesírását és azt, hogy a kiválasztott
+                félévben meg van-e hirdetve. Ha van tipp a kód mellett, az
+                ugyanarra a tárgyra mutat, csak másik szak kódján: rákattintva a
+                két kód egy tárgycsoportba kerül a tárgy nevével, tehát a
+                naptárban egy tárgyként jelennek meg – utána indíts új
+                lekérdezést.
+              </InfoHint>
+            </h3>
+            {codesWithoutTips.length > 0 && (
+              <div className="code-chips">
+                {codesWithoutTips.map((code) => (
+                  <span className="code-chip" key={code}>
+                    {code}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {codesWithTips.length > 0 && (
+              <div className="code-pairs">
+                <h4 className="code-pairs__title">Talán ezek lesznek</h4>
+                {codesWithTips.map((code) => (
+                  <div className="code-pair" key={code}>
+                    <span className="code-pair__old">{code}</span>
+                    <span className="code-pair__arrow" aria-hidden="true">
+                      →
+                    </span>
+                    <span className="code-pair__tips">
+                      {suggestions[code].map((tip) => (
+                        <button
+                          key={tip.kod}
+                          type="button"
+                          className="code-suggestion"
+                          onClick={() =>
+                            onAcceptSuggestion && onAcceptSuggestion(code, tip)
+                          }
+                          title="A két kód egy tárgycsoportba kerül"
+                        >
+                          {tip.kod} +
+                        </button>
+                      ))}
+                    </span>
+                    <span className="code-pair__name">
+                      {suggestions[code][0]?.nev}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
           </div>
         )}
 

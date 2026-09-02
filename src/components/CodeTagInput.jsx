@@ -52,6 +52,16 @@ export default function CodeTagInput({
 
   useEffect(() => () => clearTimeout(flashTimer.current), []);
 
+  // Ha elfogytak a kódok, nincs mit kijelölni. A kijelölő mód sávja ilyenkor
+  // eltűnne a „Kész” gombbal együtt, és a mód beragadna: a beviteli mező
+  // letiltva maradna, kilépni pedig nem lehetne belőle.
+  useEffect(() => {
+    if (codes.length === 0 && selectMode) {
+      setSelectMode(false);
+      setPicked(new Set());
+    }
+  }, [codes.length, selectMode]);
+
   const addCodes = (text) => {
     const incoming = text
       .split(/[;,\n\t]+/)

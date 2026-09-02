@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import InfoHint from "./InfoHint";
 import {
   parseCoursesFromHtml,
   parseKodok,
@@ -126,12 +127,14 @@ export default function NameSearch({
 
   return (
     <section className="card">
-      <h2>Keresés tárgynév alapján</h2>
-      <p className="card__hint">
-        Nem kell pontosan egyeznie: elég a név egy része, és az ékezetek, a
-        kis- vagy nagybetűk sem számítanak. A találatoknál ott van a tárgykód
-        is, amit egy kattintással felvehetsz a lekérdezésbe.
-      </p>
+      <h2>
+        Keresés tárgynév alapján
+        <InfoHint>
+          Nem kell pontosan egyeznie: elég a név egy része, és az ékezetek, a
+          kis- vagy nagybetűk sem számítanak. A találatoknál ott van a tárgykód
+          is, amit egy kattintással felvehetsz a lekérdezésbe.
+        </InfoHint>
+      </h2>
 
       <div className="form-grid">
         <div className="field">

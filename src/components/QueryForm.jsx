@@ -1,16 +1,14 @@
 import React from "react";
 import CodeTagInput from "./CodeTagInput";
+import InfoHint from "./InfoHint";
 import {
   splitCodes,
   joinCodes,
   mergeCodes,
   groupOfCode,
   sameCode,
+  newGroupId,
 } from "../lib/tanrend";
-
-function newGroupId() {
-  return `csoport-${Math.random().toString(36).slice(2, 9)}`;
-}
 
 export default function QueryForm({
   name,
@@ -24,6 +22,8 @@ export default function QueryForm({
   setSemester,
   fetchData,
   loading,
+  shuffleColors,
+  hasCourses,
 }) {
   const codes = splitCodes(name);
   const ungrouped = codes.filter((code) => !groupOfCode(groups, code));
@@ -73,11 +73,13 @@ export default function QueryForm({
 
   return (
     <section className="card">
-      <h2>Tárgykódok</h2>
-      <p className="card__hint">
-        Add meg a tárgykódokat és a félévet, majd indítsd a lekérdezést. Ha nem
-        tudod egy tárgy kódját, keresd meg a másik fülön a neve alapján.
-      </p>
+      <h2>
+        Tárgykódok
+        <InfoHint>
+          Add meg a tárgykódokat és a félévet, majd indítsd a lekérdezést. Ha
+          nem tudod egy tárgy kódját, keresd meg a másik fülön a neve alapján.
+        </InfoHint>
+      </h2>
 
       <div className="form-grid">
         <div className="field">
@@ -92,13 +94,15 @@ export default function QueryForm({
             onEnterEmpty={submitIfPossible}
           />
           <small>
-            Enterrel adod hozzá, a kódra kattintva szerkesztheted, az × -szel
-            törölsz egyet. Összesen {codes.length} kód
+            Összesen {codes.length} kód
             {groups.length > 0 && `, ebből ${codes.length - ungrouped.length} csoportban`}.
-          </small>
-          <small className="example">
-            Több kódot egyszerre is beilleszthetsz, például:{" "}
-            <code>IPM-22fpiIFE; IPM-22fpiIFG; IPM-22fpiPME</code>
+            <InfoHint label="Hogyan használd">
+              Enterrel adod hozzá, a kódra kattintva szerkesztheted, az × -szel
+              törölsz egyet. A <strong>Kijelölés</strong> gombbal több kódot
+              egyszerre másolhatsz vagy törölhetsz. Több kódot egyszerre is
+              beilleszthetsz, például:{" "}
+              <code>IPM-22fpiIFE; IPM-22fpiIFG; IPM-22fpiPME</code>
+            </InfoHint>
           </small>
         </div>
 
@@ -115,7 +119,6 @@ export default function QueryForm({
               </option>
             ))}
           </select>
-          <small>Csak ennek a félévnek a kurzusai jelennek meg.</small>
         </div>
       </div>
 
@@ -127,21 +130,25 @@ export default function QueryForm({
           disabled={loading}
         />
         <span>
-          <strong>Azonos nevű kurzusok automatikus behozása.</strong> A
-          lekérdezés után megkeresi a tanrendben a pontosan ugyanilyen nevű
-          kurzusokat, és azokat is betölti – így nem kell kézzel felvenned a
-          többi kódot. Kicsit hosszabb lekérdezés.
+          <strong>Azonos nevű kurzusok automatikus behozása.</strong>
+          <InfoHint>
+            A lekérdezés után megkeresi a tanrendben a pontosan ugyanilyen nevű
+            kurzusokat, és azokat is betölti – így nem kell kézzel felvenned a
+            többi kódot. Kicsit hosszabb lekérdezés.
+          </InfoHint>
         </span>
       </label>
 
       <div className="field code-groups">
-        <label>Tárgycsoportok</label>
-        <small>
-          Ha ugyanazt a tárgyat több kódon is meghirdették, és csak az egyik
-          kurzust kell felvenni, tedd a kódokat egy csoportba. A naptárban egy
-          tárgyként jelennek meg: ha kiválasztod az egyik kurzust, a csoport
-          összes többi lehetősége eltűnik.
-        </small>
+        <label>
+          Tárgycsoportok
+          <InfoHint>
+            Ha ugyanazt a tárgyat több kódon is meghirdették, és csak az egyik
+            kurzust kell felvenni, tedd a kódokat egy csoportba. A naptárban egy
+            tárgyként jelennek meg: ha kiválasztod az egyik kurzust, a csoport
+            összes többi lehetősége eltűnik.
+          </InfoHint>
+        </label>
 
         {groups.map((group) => (
           <div className="code-group" key={group.id}>
@@ -201,9 +208,18 @@ export default function QueryForm({
         >
           Összes kód törlése
         </button>
-        <span>
+        <button
+          className="secondary"
+          onClick={shuffleColors}
+          disabled={loading || !hasCourses}
+          title="Minden tárgy új színt kap a naptárban"
+        >
+          Színek cseréje
+        </button>
+        <InfoHint label="A lekérdezésről">
           A lekérdezés felülírja a naptár tartalmát, és kódonként pár másodperc.
-        </span>
+          A kiválasztásaid, a pipák és a színek megmaradnak.
+        </InfoHint>
       </div>
     </section>
   );

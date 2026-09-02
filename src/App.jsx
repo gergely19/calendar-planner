@@ -3,6 +3,8 @@ import Header from "./components/Header";
 import QueryForm from "./components/QueryForm";
 import NameSearch from "./components/NameSearch";
 import Calendar from "./components/Calendar";
+import InfoHint from "./components/InfoHint";
+import PairingModal from "./components/PairingModal";
 import {
   SEMESTERS,
   KEY_GROUPS,
@@ -14,6 +16,17 @@ import {
   mergeCodes,
   readGroups,
   sameName,
+  KEY_COLORS,
+  readDismissed,
+  writeDismissed,
+  sameCode,
+  groupOfCode,
+  newGroupId,
+  codeTail,
+  codeHead,
+  commonPrefixLength,
+  isPlausibleSuggestion,
+  MIN_TAIL_QUERY,
 } from "./lib/tanrend";
 import "./indexstyle.css";
 
@@ -43,7 +56,23 @@ function App() {
 
   // Lekérdezéskor a pontosan ugyanilyen nevű kurzusok automatikus behozása.
   const [autoSameName, setAutoSameName] = useState(true);
-  const [extraCodes, setExtraCodes] = useState([]);
+
+  // Nem talált kódokhoz: tárgykód -> [{kod, nev}] tippek.
+  const [suggestions, setSuggestions] = useState({});
+
+  // Lekérdezés után feljön a párosító ablak, ha van mit párosítani.
+  const [pairingOpen, setPairingOpen] = useState(false);
+
+  // Amit egyszer elvetettél, azt többé nem kínáljuk fel.
+  const [dismissed, setDismissed] = useState({});
+
+  // A „Színek cseréje” gomb ezt lépteti, amitől a naptár újrasorsolja a színeket.
+  const [colorSeed, setColorSeed] = useState(0);
+
+  const shuffleColors = () => {
+    localStorage.removeItem(KEY_COLORS);
+    setColorSeed((seed) => seed + 1);
+  };
 
   const codes = splitCodes(name);
 
@@ -54,6 +83,80 @@ function App() {
     setGroups(next);
     localStorage.setItem(KEY_GROUPS, JSON.stringify(next));
   };
+
+  // A tipp ugyanaz a tárgy másik szak kódján, ezért nem elég felvenni a kódot:
+  // a régivel egy tárgycsoportba tesszük, a tárgy nevével. Így a naptárban egy
+  // tárgyként viselkednek, és elég közülük egy kurzust felvenni.
+  const acceptSuggestions = (pairs) => {
+    if (pairs.length === 0) return;
+
+    addCodes(pairs.map((p) => p.tip.kod));
+
+    // A csoportlistát végiggörgetjük, hogy több párosítás se dolgozzon elavult
+    // állapottal.
+    let next = groups;
+
+    pairs.forEach(({ code, tip }) => {
+      const pair = [code, tip.kod];
+      const target = groupOfCode(next, code) || groupOfCode(next, tip.kod);
+      const label = (tip.nev || "").trim();
+
+      next = next.map((group) => {
+        if (target && group.id === target.id) {
+          return {
+            ...group,
+            label: group.label.trim() || label,
+            codes: mergeCodes(group.codes, pair),
+          };
+        }
+        // egy kód csak egy csoportban lehet
+        return {
+          ...group,
+          codes: group.codes.filter((c) => !pair.some((p) => sameCode(p, c))),
+        };
+      });
+
+      if (!target) next = [...next, { id: newGroupId(), label, codes: pair }];
+    });
+
+    updateGroups(next);
+
+    // A nem választott lehetőségeket elvetjük, különben a következő
+    // lekérdezésnél ugyanezek jönnének fel újra.
+    const nextDismissed = { ...dismissed };
+    pairs.forEach(({ code, tip }) => {
+      const key = code.toLowerCase();
+      const others = (suggestions[code] || [])
+        .filter((t) => !sameCode(t.kod, tip.kod))
+        .map((t) => t.kod.toLowerCase());
+      nextDismissed[key] = [
+        ...new Set([...(nextDismissed[key] || []), ...others]),
+      ];
+    });
+    setDismissed(nextDismissed);
+    writeDismissed(nextDismissed);
+
+    // A párosított kód megoldott: eltűnik a tippek közül itt és a mentésből is.
+    const paired = new Set(pairs.map((p) => p.code));
+    setSuggestions((prev) => {
+      const rest = { ...prev };
+      paired.forEach((code) => delete rest[code]);
+      return rest;
+    });
+
+    try {
+      const cache = JSON.parse(localStorage.getItem("coursesCache"));
+      if (cache?.suggestions) {
+        paired.forEach((code) => delete cache.suggestions[code]);
+        localStorage.setItem("coursesCache", JSON.stringify(cache));
+      }
+    } catch {
+      // hibás cache esetén nincs mit frissíteni
+    }
+  };
+
+  const acceptSuggestion = (failedCode, tip) =>
+    acceptSuggestions([{ code: failedCode, tip }]);
 
   const updateAutoSameName = (value) => {
     setAutoSameName(value);
@@ -181,14 +284,106 @@ function App() {
       extraCodes = [...found].sort((a, b) => a.localeCompare(b, "hu"));
     }
 
+    // 3. fázis: tipp a nem talált kódokhoz. A tanrend kódkeresője részstringre
+    // illeszt, ezért a kód végével rákeresve előjönnek ugyanannak a tárgynak a
+    // más szakos meghirdetései – tipikusan csak a kód közepe tér el.
+    const suggestions = {};
+    if (errorCodes.length > 0) {
+      const known = new Set(
+        [...codes, ...extraCodes].map((c) => c.toLowerCase())
+      );
+
+      // Amelyik kód már egy tárgycsoportban van, és a csoport másik kódja
+      // meghozta a kurzusokat, az meg van oldva – oda nem kell több tipp.
+      const loaded = new Set(
+        allCourses.map((c) => (parseKodok(c.kodok).targykod || "").toLowerCase())
+      );
+      const isCovered = (code) => {
+        const group = groupOfCode(groups, code);
+        return (
+          !!group &&
+          group.codes.some(
+            (c) => !sameCode(c, code) && loaded.has(c.toLowerCase())
+          )
+        );
+      };
+
+      setProgress({ done: 0, total: errorCodes.length, eta: null, phase: "tips" });
+      let tipsDone = 0;
+
+      for (const code of errorCodes) {
+        const tail = codeTail(code);
+        const rejected = dismissed[code.toLowerCase()] || [];
+
+        if (tail.length >= MIN_TAIL_QUERY && !isCovered(code)) {
+          try {
+            const response = await fetch(
+              tanrendUrl("keres_kod_azon", tail, semester)
+            );
+            if (response.ok) {
+              const rows = parseCoursesFromHtml(await response.text());
+              const found = new Map();
+
+              rows.forEach((row) => {
+                const { targykod } = parseKodok(row.kodok);
+                if (!targykod) return;
+                if (!isPlausibleSuggestion(code, targykod)) return;
+                if (known.has(targykod.toLowerCase())) return;
+                if (rejected.includes(targykod.toLowerCase())) return;
+                if (!found.has(targykod)) found.set(targykod, row.tantargy || "");
+              });
+
+              // Előre az kerül, aminek az évszámmal együtt is stimmel az
+              // eleje; utána a hosszabb közös kezdet, végül a hasonlóbb hossz
+              // dönt (IPM-24ATIDSEG közelebb van, mint IPM-24ATCTDSEG).
+              const head = codeHead(code).toLowerCase();
+              const headScore = (kod) =>
+                head.length > 0 && kod.toLowerCase().startsWith(head) ? 1 : 0;
+
+              const list = [...found.entries()]
+                .map(([kod, nev]) => ({ kod, nev }))
+                .sort(
+                  (a, b) =>
+                    headScore(b.kod) - headScore(a.kod) ||
+                    commonPrefixLength(code, b.kod) -
+                      commonPrefixLength(code, a.kod) ||
+                    Math.abs(a.kod.length - code.length) -
+                      Math.abs(b.kod.length - code.length)
+                )
+                .slice(0, 3);
+
+              if (list.length > 0) suggestions[code] = list;
+            }
+          } catch (err) {
+            console.error("Tippkeresési hiba:", err);
+          }
+        }
+
+        tipsDone++;
+        setProgress({
+          done: tipsDone,
+          total: errorCodes.length,
+          eta: null,
+          phase: "tips",
+        });
+      }
+    }
+
     localStorage.setItem(
       "coursesCache",
-      JSON.stringify({ semester, courses: allCourses, errorCodes, extraCodes })
+      JSON.stringify({
+        semester,
+        courses: allCourses,
+        errorCodes,
+        extraCodes,
+        suggestions,
+      })
     );
 
     setCourses(allCourses);
     setErrorCodes(errorCodes);
-    setExtraCodes(extraCodes);
+    setSuggestions(suggestions);
+    setPairingOpen(Object.keys(suggestions).length > 0);
     setHasQueried(true);
     setLoading(false);
   };
@@ -206,6 +401,8 @@ function App() {
 
     setGroups(readGroups());
 
+    setDismissed(readDismissed());
+
     const savedAuto = localStorage.getItem(KEY_AUTO_SAME_NAME);
     if (savedAuto !== null) setAutoSameName(savedAuto === "true");
 
@@ -217,7 +414,11 @@ function App() {
         if (cache.semester) setSemester(cache.semester);
         setCourses(cache.courses);
         setErrorCodes(Array.isArray(cache.errorCodes) ? cache.errorCodes : []);
-        setExtraCodes(Array.isArray(cache.extraCodes) ? cache.extraCodes : []);
+        setSuggestions(
+          cache.suggestions && typeof cache.suggestions === "object"
+            ? cache.suggestions
+            : {}
+        );
         setHasQueried(true);
       }
     } catch {
@@ -277,6 +478,8 @@ function App() {
             setSemester={setSemester}
             fetchData={fetchData}
             loading={loading}
+            shuffleColors={shuffleColors}
+            hasCourses={courses.length > 0}
           />
         ) : (
           <NameSearch
@@ -291,21 +494,15 @@ function App() {
         )}
       </div>
 
-      {extraCodes.length > 0 && (
-        <div className="notice">
-          Az azonos nevű meghirdetések miatt {extraCodes.length} további
-          tárgykód kurzusai is bekerültek:{" "}
-          <strong>{extraCodes.join(", ")}</strong>. Ezek a naptárban ugyanannál
-          a tárgynál jelennek meg, tehát elég közülük egy kurzust választani.
-        </div>
-      )}
-
       <section className="card">
-        <h2>Órarend</h2>
-        <p className="card__hint">
-          Kattints egy órára: kiválasztod azt a kurzust, és a tárgy többi
-          csoportja eltűnik a naptárból. Újra rákattintva visszaáll az összes.
-        </p>
+        <h2>
+          Órarend
+          <InfoHint>
+            Kattints egy órára: kiválasztod azt a kurzust, és a tárgy többi
+            csoportja eltűnik a naptárból. Újra rákattintva visszaáll az összes.
+            Az órára húzva a kurzus időpontja és oktatója is megjelenik.
+          </InfoHint>
+        </h2>
 
         {!hasQueried && (
           <div className="notice">
@@ -313,8 +510,26 @@ function App() {
           </div>
         )}
 
-        <Calendar courses={courses} errorCodes={errorCodes} groups={groups} />
+        <Calendar
+          courses={courses}
+          errorCodes={errorCodes}
+          groups={groups}
+          suggestions={suggestions}
+          onAcceptSuggestion={acceptSuggestion}
+          colorSeed={colorSeed}
+        />
       </section>
+
+      {pairingOpen && !loading && (
+        <PairingModal
+          suggestions={suggestions}
+          onPair={(pairs) => {
+            acceptSuggestions(pairs);
+            setPairingOpen(false);
+          }}
+          onClose={() => setPairingOpen(false)}
+        />
+      )}
 
       {loading && (
         <div className="overlay" role="status" aria-live="polite">
@@ -322,6 +537,8 @@ function App() {
             <h2>
               {progress.phase === "names"
                 ? "Azonos nevű kurzusok keresése"
+                : progress.phase === "tips"
+                ? "Tipp keresése a nem talált kódokhoz"
                 : "Kurzusok betöltése"}
             </h2>
             <p>

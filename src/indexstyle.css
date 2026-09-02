@@ -207,6 +207,66 @@ select:focus {
   color: var(--text);
 }
 
+/* Info gomb: a hosszú magyarázatok emögé kerülnek */
+
+.info {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.info__btn {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin-left: 6px;
+  border: 1px solid #c8cdd2;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-soft);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 11px;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.info__btn:hover:not(:disabled),
+.info__btn--open {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
+.info__text {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 7px);
+  left: 0;
+  width: 320px;
+  max-width: min(320px, 78vw);
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14);
+  font-family: "Segoe UI", system-ui, Arial, sans-serif;
+  font-size: 0.82rem;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.5;
+  letter-spacing: 0;
+  color: var(--text-soft);
+  text-align: left;
+  white-space: normal;
+}
+
+.info__text code {
+  font-size: 0.95em;
+}
+
 /* Gombok */
 
 button {
@@ -555,18 +615,207 @@ button.secondary:hover:not(:disabled) {
   padding: 3px 0;
 }
 
-.code-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 4px 12px;
+.code-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.code-item {
-  padding: 4px 0;
-  border-top: 1px solid #f0cfcc;
+.code-chip {
+  padding: 3px 9px;
+  border: 1px solid #f0cfcc;
+  border-radius: 4px;
+  background: var(--surface);
   font-family: Consolas, "Courier New", monospace;
-  font-size: 0.84rem;
+  font-size: 0.8rem;
 }
+
+.code-pairs {
+  margin-top: 14px;
+}
+
+.code-pairs__title {
+  margin: 0 0 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+/* egy sor: régi kód, nyíl, tipp gomb(ok), tárgynév – oszlopokba rendezve */
+.code-pair {
+  display: grid;
+  grid-template-columns: max-content 12px max-content 1fr;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 6px 0;
+  border-top: 1px solid #f0cfcc;
+}
+
+.code-pair__old {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.code-pair__arrow {
+  text-align: center;
+  opacity: 0.6;
+}
+
+.code-pair__tips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.code-pair__name {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+@media (max-width: 620px) {
+  .code-pair {
+    grid-template-columns: 1fr;
+  }
+
+  .code-pair__arrow {
+    display: none;
+  }
+}
+
+.code-suggestion {
+  padding: 2px 8px;
+  border: 1px solid #e0b6b2;
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--danger);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.code-suggestion:hover:not(:disabled) {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+}
+
+/* Párosító ablak */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.modal__box {
+  width: 100%;
+  max-width: 620px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 22px 24px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+}
+
+.modal__box h2 {
+  font-size: 1.05rem;
+}
+
+.modal__lead {
+  margin: 6px 0 16px;
+  font-size: 0.85rem;
+  color: var(--text-soft);
+}
+
+.modal__list {
+  border-top: 1px solid var(--border);
+}
+
+.pair-row {
+  display: grid;
+  grid-template-columns: max-content 12px 1fr;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.pair-row--off {
+  opacity: 0.45;
+}
+
+.pair-row__pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.pair-row__old {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.pair-row__arrow {
+  text-align: center;
+  opacity: 0.6;
+}
+
+.pair-row__tips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.pair-tip {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  cursor: pointer;
+}
+
+.pair-tip__code {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--brand);
+}
+
+.pair-tip__name {
+  font-size: 0.8rem;
+  color: var(--text-soft);
+}
+
+.modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.modal__note {
+  font-size: 0.8rem;
+  color: var(--text-soft);
+}
+
+@media (max-width: 620px) {
+  .pair-row {
+    grid-template-columns: 1fr;
+  }
+
+  .pair-row__arrow {
+    display: none;
+  }
+}
+
 
 #errorCodes:empty,
 #unscheduled:empty {

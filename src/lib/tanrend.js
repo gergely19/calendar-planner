@@ -112,12 +112,115 @@ export function sameName(a, b) {
   return clean(a) === clean(b) && clean(a).length > 0;
 }
 
+// ----- tipp a nem talált kódokhoz -----
+// A tanrend kódkeresője részstringre illeszt, ezért a kód végét beküldve
+// megtaláljuk ugyanannak a tárgynak a más szakos meghirdetéseit is:
+// IPM-22fpiDNDEG (nincs ilyen) -> "DNDEG" -> IPM-22fmiDNDEG.
+
+// A kód végén álló csupa nagybetűs/számos rész a tárgy azonosítója.
+export function codeTail(code) {
+  const match = (code || "").match(/[A-Z0-9ÁÉÍÓÖŐÚÜŰ]+$/);
+  return match ? match[0] : "";
+}
+
+// A kód eleje: ami a közepén álló, kisbetűs szakjelölés előtt áll.
+// IPM-22fpiPME -> "IPM-22", IP-18cSZÁMEA2G -> "IP-18".
+export function codeHead(code) {
+  const value = (code || "").trim();
+  const tail = codeTail(value);
+  const rest = value.slice(0, value.length - tail.length);
+  return rest.replace(/[a-záéíóöőúüű]+$/, "");
+}
+
+// A kód eleje az évszám nélkül: a "IPM-22" -> "IPM-", "IP-18" -> "IP-".
+// Az évszám csak azt mondja meg, melyik tanterv szerint hirdették meg, ezért
+// az összetartozó kódoknál simán eltérhet (IPM-22fpiDSEG -> IPM-24ATIDSEG).
+export function codePrefix(code) {
+  return codeHead(code).replace(/\d+$/, "");
+}
+
+// Önmagában ennél rövidebb végződés túl sok, oda nem illő találatot hozna –
+// ilyenkor csak akkor fogadjuk el a jelöltet, ha az eleje is stimmel.
+export const MIN_TAIL_LENGTH = 4;
+
+// Ennél rövidebb végződéssel már keresni sem érdemes.
+export const MIN_TAIL_QUERY = 2;
+
+// Az eleje ennél rövidebb már nem jelent igazi egyezést.
+export const MIN_HEAD_LENGTH = 3;
+
+// Mikor tekintünk egy kódot ugyanannak a tárgynak?
+//   a) elég hosszú, azonos végződés
+//      (IPM-22fmiPETEG -> IPM-24fkbPETEG)
+//   b) az eleje és a vége is egyezik, csak a közepe más – az évszám itt
+//      eltérhet, mert az csak a tantervet jelöli
+//      (IPM-22fpiPME -> IPM-22AUTPME, IPM-22fpiDSEG -> IPM-24ATIDSEG)
+export function isPlausibleSuggestion(failedCode, candidate) {
+  const failed = (failedCode || "").toLowerCase();
+  const other = (candidate || "").toLowerCase();
+  if (!other || other === failed) return false;
+
+  const tail = codeTail(failedCode).toLowerCase();
+  if (!tail) return false;
+
+  const prefix = codePrefix(failedCode).toLowerCase();
+  const prefixAndTail =
+    prefix.length >= MIN_HEAD_LENGTH &&
+    other.startsWith(prefix) &&
+    other.endsWith(tail);
+
+  const sameTail = codeTail(candidate).toLowerCase() === tail;
+
+  return prefixAndTail || (sameTail && tail.length >= MIN_TAIL_LENGTH);
+}
+
+// A rangsoroláshoz: a legjobb tipp az, amelyik elöl is a legtöbbet egyezik,
+// hiszen a keresés miatt a vége már úgyis azonos.
+export function commonPrefixLength(a, b) {
+  const x = (a || "").toLowerCase();
+  const y = (b || "").toLowerCase();
+  let i = 0;
+  while (i < x.length && i < y.length && x[i] === y[i]) i++;
+  return i;
+}
+
 // ----- tárgycsoportok -----
 // Egy tárgyat több kódon is meghirdethetnek (pl. szakonként külön kód), és
 // ezekből csak egy kurzust kell felvenni. Az egy csoportba tett kódok ezért a
 // naptárban egyetlen tárgyként viselkednek.
 
 export const KEY_GROUPS = "codeGroups";
+
+// Tárgyanként a naptárban használt szín, hogy újratöltés után se változzon.
+export const KEY_COLORS = "courseColors";
+
+// Elvetett tippek: nem talált kód -> [a hozzá felkínált, de nem választott
+// kódok]. Ha egy lehetőség közül választottál, a többit nem kínáljuk fel újra.
+export const KEY_DISMISSED = "dismissedSuggestions";
+
+export function readDismissed() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEY_DISMISSED));
+    if (!raw || typeof raw !== "object") return {};
+    const out = {};
+    Object.entries(raw).forEach(([code, list]) => {
+      if (Array.isArray(list)) {
+        out[code.toLowerCase()] = list.map((c) => String(c).toLowerCase());
+      }
+    });
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function writeDismissed(map) {
+  localStorage.setItem(KEY_DISMISSED, JSON.stringify(map));
+}
+
+export function newGroupId() {
+  return `csoport-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 export function normalizeGroups(raw) {
   if (!Array.isArray(raw)) return [];
