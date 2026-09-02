@@ -116,8 +116,8 @@ export default function PairingModal({ suggestions, onPair, onClose }) {
             Most nem
           </button>
           <span className="modal__note">
-            A párosítás után indíts új lekérdezést, hogy az új kódok kurzusai is
-            bejöjjenek.
+            A párosítás után a lekérdezés magától újraindul, hogy az új kódok
+            kurzusai is bejöjjenek.
           </span>
         </div>
       </div>

@@ -90,7 +90,12 @@ function App() {
   const acceptSuggestions = (pairs) => {
     if (pairs.length === 0) return;
 
-    addCodes(pairs.map((p) => p.tip.kod));
+    const nextCodes = mergeCodes(
+      codes,
+      pairs.map((p) => p.tip.kod)
+    );
+    const nextName = joinCodes(nextCodes);
+    setName(nextName);
 
     // A csoportlistát végiggörgetjük, hogy több párosítás se dolgozzon elavult
     // állapottal.
@@ -153,6 +158,11 @@ function App() {
     } catch {
       // hibás cache esetén nincs mit frissíteni
     }
+
+    // A párosított kódok kurzusai csak új lekérdezéssel jönnek be, ezért azt
+    // rögtön el is indítjuk – a friss állapotot átadva, mert a React csak a
+    // következő renderben frissítené.
+    fetchData({ name: nextName, groups: next, dismissed: nextDismissed });
   };
 
   const acceptSuggestion = (failedCode, tip) =>
@@ -163,24 +173,32 @@ function App() {
     localStorage.setItem(KEY_AUTO_SAME_NAME, String(value));
   };
 
-  const fetchData = async () => {
-    if (!name.trim()) {
+  // A párosítás utáni automatikus újralekérdezés még a React állapotfrissítés
+  // előtt indul, ezért a friss kódlistát, csoportokat és elvetéseket át lehet
+  // adni felülírásként.
+  const fetchData = async (override) => {
+    const activeName = override?.name ?? name;
+    const activeCodes = splitCodes(activeName);
+    const activeGroups = override?.groups ?? groups;
+    const activeDismissed = override?.dismissed ?? dismissed;
+
+    if (!activeName.trim()) {
       setFormError("Add meg legalább egy tantárgykódot a lekérdezéshez.");
       return;
     }
     setFormError("");
     // A localStorage-t nem töröljük: a kiválasztások, pipák és színek megmaradnak.
-    localStorage.setItem("codes", name);
+    localStorage.setItem("codes", activeName);
 
     setLoading(true);
 
-    setProgress({ done: 0, total: codes.length, eta: null });
+    setProgress({ done: 0, total: activeCodes.length, eta: null });
     const startedAt = performance.now();
     let done = 0;
 
     let allCourses = [];
     let errorCodes = [];
-    for (const code of codes) {
+    for (const code of activeCodes) {
       let data = [];
       let attempts = 0;
 
@@ -216,8 +234,11 @@ function App() {
       const avgMs = (performance.now() - startedAt) / done;
       setProgress({
         done,
-        total: codes.length,
-        eta: Math.max(0, Math.round((avgMs * (codes.length - done)) / 1000)),
+        total: activeCodes.length,
+        eta: Math.max(
+          0,
+          Math.round((avgMs * (activeCodes.length - done)) / 1000)
+        ),
       });
     }
 
@@ -225,7 +246,7 @@ function App() {
     // a tárgyat több kódon is meghirdethetik, ezeket nem kell kézzel felvenni.
     let extraCodes = [];
     if (autoSameName && allCourses.length > 0) {
-      const known = new Set(codes.map((c) => c.toLowerCase()));
+      const known = new Set(activeCodes.map((c) => c.toLowerCase()));
       const names = [
         ...new Set(
           allCourses
@@ -240,7 +261,7 @@ function App() {
 
       setProgress({
         done,
-        total: codes.length + names.length,
+        total: activeCodes.length + names.length,
         eta: null,
         phase: "names",
       });
@@ -272,7 +293,7 @@ function App() {
 
         done++;
         const avgMs = (performance.now() - startedAt) / done;
-        const total = codes.length + names.length;
+        const total = activeCodes.length + names.length;
         setProgress({
           done,
           total,
@@ -290,7 +311,7 @@ function App() {
     const suggestions = {};
     if (errorCodes.length > 0) {
       const known = new Set(
-        [...codes, ...extraCodes].map((c) => c.toLowerCase())
+        [...activeCodes, ...extraCodes].map((c) => c.toLowerCase())
       );
 
       // Amelyik kód már egy tárgycsoportban van, és a csoport másik kódja
@@ -299,7 +320,7 @@ function App() {
         allCourses.map((c) => (parseKodok(c.kodok).targykod || "").toLowerCase())
       );
       const isCovered = (code) => {
-        const group = groupOfCode(groups, code);
+        const group = groupOfCode(activeGroups, code);
         return (
           !!group &&
           group.codes.some(
@@ -313,7 +334,7 @@ function App() {
 
       for (const code of errorCodes) {
         const tail = codeTail(code);
-        const rejected = dismissed[code.toLowerCase()] || [];
+        const rejected = activeDismissed[code.toLowerCase()] || [];
 
         if (tail.length >= MIN_TAIL_QUERY && !isCovered(code)) {
           try {
