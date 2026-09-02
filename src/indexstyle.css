@@ -522,3 +522,162 @@ button.secondary:hover:not(:disabled) {
     transform: rotate(360deg);
   }
 }
+
+/* Fülek */
+
+.tabs {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tabs .tab {
+  margin-bottom: -1px;
+  padding: 11px 22px;
+  background: none;
+  color: var(--text-soft);
+  border: 1px solid transparent;
+  border-radius: var(--radius) var(--radius) 0 0;
+  font-size: 1.05rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* A gombok általános hover-színe itt nem kell: a fül világos marad */
+.tabs .tab:hover:not(.tab--active) {
+  background: #eceff1;
+  color: var(--text);
+}
+
+.tabs .tab--active,
+.tabs .tab--active:hover {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+  border-bottom-color: var(--surface);
+}
+
+.tab__count {
+  padding: 0 7px;
+  border-radius: 10px;
+  background: #e3e7ea;
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.tab--active .tab__count {
+  background: var(--brand);
+  color: #fff;
+}
+
+/* Szerkeszthető kódcimke */
+
+.tag {
+  padding-left: 0;
+}
+
+.tag__text {
+  padding: 0 0 0 8px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: text;
+}
+
+.tag__text:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}
+
+.tag__text:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.tag--editing {
+  padding: 2px 3px;
+  background: var(--surface);
+  border-color: var(--brand);
+}
+
+.tag-input input.tag__edit {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 60px;
+  padding: 1px 4px;
+  font: inherit;
+  border: none;
+  background: none;
+}
+
+/* Névkeresés találatai */
+
+.results {
+  margin-top: 8px;
+}
+
+.results .section-title {
+  margin: 16px 0 8px;
+}
+
+.result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+}
+
+.result__info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.result__main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.result__code {
+  padding: 1px 6px;
+  background: #eef1f3;
+  border: 1px solid #dfe3e6;
+  border-radius: 4px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.result__name {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.result__meta {
+  margin-top: 2px;
+  color: var(--text-soft);
+  font-size: 0.8rem;
+}
+
+.result button {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
+/* Tárgykód a kurzuscsoportok listájában */
+
+.course-group__code {
+  margin: -4px 0 8px 17px;
+  color: var(--text-soft);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.78rem;
+}

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { parseKodok } from "../lib/tanrend";
 import "../indexstyle.css";
 
 let errors = window.errors || {};
@@ -65,29 +66,6 @@ function courseLabel(tantargy, isEloadas) {
   name = name.replace(/[\s.]+(Ea|Gy)\.?\s*$/i, "").trim();
 
   return `${name} ${suffix}`;
-}
-
-function parseKodok(kodokStr) {
-  const str = (kodokStr || "").trim();
-  // pl. "IPM-22fpiIFG-1 (gyakorlat)" vagy "ELTE-OI-AI-90 (előadás)"
-  const match = str.match(/^(.+)-(\d+)(?:\s*\((.*?)\))?$/);
-  if (match) {
-    return {
-      targykod: match[1].trim(),
-      kurzuskod: parseInt(match[2], 10),
-      tipus: (match[3] || "").trim(),
-    };
-  }
-  const parts = str.split(/\s*\(/);
-  const codePart = parts[0].trim();
-  const tipus = parts[1] ? parts[1].replace(/\)$/, "").trim() : "";
-  const lastHyphenIndex = codePart.lastIndexOf("-");
-  if (lastHyphenIndex !== -1) {
-    const targykod = codePart.substring(0, lastHyphenIndex).trim();
-    const kurzuskod = parseInt(codePart.substring(lastHyphenIndex + 1), 10) || 0;
-    return { targykod, kurzuskod, tipus };
-  }
-  return { targykod: str, kurzuskod: 0, tipus: "" };
 }
 
 function isEloadasCourse(item, parsed) {
@@ -215,6 +193,7 @@ function processCourses(courses) {
           tanar: item.tanar,
           tantargy: tantargyName,
           kurzuskod: kurzuskod,
+          targykod: targykod,
         },
       });
     });
@@ -298,7 +277,9 @@ const Calendar = ({ courses, errorCodes }) => {
       args.data.bubbleHtml =
         "<b>" +
         escapeHtml(t["tantargy"]) +
-        "</b><br>#" +
+        "</b><br>" +
+        escapeHtml(t["targykod"] || "") +
+        "<br>#" +
         t["kurzuskod"] +
         " &middot; " +
         escapeHtml(t["tanar"] || "oktató nincs megadva") +
@@ -372,6 +353,17 @@ const Calendar = ({ courses, errorCodes }) => {
           title.appendChild(document.createTextNode(tantargy));
           group.appendChild(title);
 
+          // A tárgykód a név mellé kell, hogy látszódjon, melyik tárgyról van szó
+          const targykodok = [
+            ...new Set(lista.map((e) => e.tags.targykod).filter(Boolean)),
+          ];
+          if (targykodok.length > 0) {
+            const codeLine = document.createElement("div");
+            codeLine.className = "course-group__code";
+            codeLine.textContent = targykodok.join(", ");
+            title.insertAdjacentElement("afterend", codeLine);
+          }
+
           lista.forEach((event) => {
             const key = courseKey(event.tags.tantargy, event.tags.kurzuskod);
             const isSelected = selected[event.tags.tantargy] === event.tags.kurzuskod;
@@ -407,7 +399,14 @@ const Calendar = ({ courses, errorCodes }) => {
 
             const code = document.createElement("span");
             code.className = "course-option__code";
-            code.textContent = `#${event.tags.kurzuskod}`;
+            // ha egy név alatt több tárgykód is fut, itt a teljes kód kell
+            code.textContent =
+              targykodok.length > 1 && event.tags.targykod
+                ? `${event.tags.targykod}-${event.tags.kurzuskod}`
+                : `#${event.tags.kurzuskod}`;
+            code.title = `${event.tags.targykod || ""}-${
+              event.tags.kurzuskod
+            }`;
 
             const text = document.createTextNode(
               ` ${event.tags.tanar || "oktató nincs megadva"}`
@@ -474,10 +473,12 @@ const Calendar = ({ courses, errorCodes }) => {
 
         unscheduled.forEach((course) => {
           const parsed = parseKodok(course.kodok);
-          const kurzuskod = parsed.kurzuskod;
+          const fullCode = parsed.targykod
+            ? `${parsed.targykod}-${parsed.kurzuskod}`
+            : `#${parsed.kurzuskod}`;
           const row = document.createElement("div");
           row.className = "unscheduled__item";
-          row.textContent = `#${kurzuskod} · ${course.tantargy} · ${
+          row.textContent = `${fullCode} · ${course.tantargy} · ${
             course.tanar || "oktató nincs megadva"
           }`;
           panel.appendChild(row);
@@ -538,8 +539,9 @@ const Calendar = ({ courses, errorCodes }) => {
 
       <h3 className="section-title">Kurzuscsoportok</h3>
       <p className="card__hint">
-        Tárgyanként az összes meghirdetett csoport. A pipát kivéve a kurzus
-        eltűnik a naptárból; a beállítás a böngészőben megmarad.
+        Tárgyanként az összes meghirdetett csoport, a név alatt a tárgykóddal. A
+        pipát kivéve a kurzus eltűnik a naptárból; a beállítás a böngészőben
+        megmarad.
       </p>
       <div id="courses"></div>
 

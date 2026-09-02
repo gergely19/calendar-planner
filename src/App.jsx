@@ -1,8 +1,24 @@
 import React, { useEffect, useState } from "react";
 import Header from "./components/Header";
 import QueryForm from "./components/QueryForm";
+import NameSearch from "./components/NameSearch";
 import Calendar from "./components/Calendar";
+import {
+  SEMESTERS,
+  tanrendUrl,
+  parseCoursesFromHtml,
+  splitCodes,
+  joinCodes,
+  mergeCodes,
+} from "./lib/tanrend";
 import "./indexstyle.css";
+
+const KEY_TAB = "activeTab";
+
+const TABS = [
+  { id: "codes", label: "Tárgykódok" },
+  { id: "search", label: "Keresés név alapján" },
+];
 
 function App() {
   const [courses, setCourses] = useState([]);
@@ -11,11 +27,17 @@ function App() {
   const [progress, setProgress] = useState({ done: 0, total: 0, eta: null });
   const [formError, setFormError] = useState("");
   const [hasQueried, setHasQueried] = useState(false);
+  const [tab, setTab] = useState("codes");
   const [name, setName] = useState("IPM-22fpiPAIEG; IPM-24fpiPETEG; IPM-22fpiIFE; IPM-22fpiIFG; IPM-22fpiDSEG; ELTE-OI-AI; IPM-24fpiMFCE; IPM-22fRMEG; IPM-22fpiDNDEG; IPM-22fpiPCMSG; IPM-22fpiPME"); //IP-18cAB2E; IP-18cSZÁMEA2E;    IP-18KPROGEG  ; IP-18MIAE; IP-18cAB2G; IP-18cSZÁMEA2G;  IP-18KVPYEG; IP-24KVSZPDMEG; IP-18cVSZG
 
   //IP-18cVSZG; IP-24KVSZPDMEG; IP-18KVIBDAG; IP-18cSZÁMEA2E; IP-18cAB2G; IP-18KVSZPREG; IP-18MIAE; IP-18KPROGEG; IP-18KVPYEG; IP-18cAB2E; IP-18KVELE; IP-18KVSZBGTE; IP-18KVIFSWPROGG; IP-18cSZÁMEA2G
   const [semester, setSemester] = useState("2026-2027-1");
-  const API_URL = import.meta.env.VITE_API_URL || "";
+
+  const codes = splitCodes(name);
+
+  // A névkeresés fülről ide kerülnek be a talált tárgykódok.
+  const addCodes = (incoming) => setName(joinCodes(mergeCodes(codes, incoming)));
+
   const fetchData = async () => {
     if (!name.trim()) {
       setFormError("Add meg legalább egy tantárgykódot a lekérdezéshez.");
@@ -27,8 +49,6 @@ function App() {
 
     setLoading(true);
 
-    // Feltételezzük, hogy a backend elérhető /api/get_data.php útvonalon
-    const codes = name.split(";").map((code) => code.trim()).filter(Boolean);
     setProgress({ done: 0, total: codes.length, eta: null });
     const startedAt = performance.now();
     let done = 0;
@@ -41,35 +61,15 @@ function App() {
 
       while (attempts < 3) {
         try {
-          const response = await fetch(`/api/elte/tanrendnavigation.php?k=${encodeURIComponent(code)}&m=keres_kod_azon&f=${encodeURIComponent(semester)}`);
+          const response = await fetch(
+            tanrendUrl("keres_kod_azon", code, semester)
+          );
 
           if (!response.ok) {
             throw new Error(`HTTP hiba: ${response.status}`);
           }
 
-          const htmlString = await response.text();
-
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(htmlString, "text/html");
-          const entries = doc.querySelectorAll('table[id*="resulttable"] tr');
-          const parsedCourses = [];
-
-          entries.forEach(entry => {
-            const cols = entry.querySelectorAll('td');
-            if (cols.length > 0) {
-                const idopont = cols[0]?.textContent?.trim() || "";
-                const kodok = cols[1]?.textContent?.trim() || "";
-                const tantargy = cols[2]?.textContent?.trim() || "";
-                const tanar = cols[5]?.textContent?.trim() || "";
-
-                parsedCourses.push({
-                    idopont,
-                    tantargy,
-                    kodok,
-                    tanar
-                });
-            }
-          });
+          const parsedCourses = parseCoursesFromHtml(await response.text());
 
           if (parsedCourses.length > 0) {
             data = parsedCourses;
@@ -112,6 +112,11 @@ function App() {
       setName(savedCodes);
     }
 
+    const savedTab = localStorage.getItem(KEY_TAB);
+    if (TABS.some((t) => t.id === savedTab)) {
+      setTab(savedTab);
+    }
+
     // Az utolsó lekérdezés eredménye is megmarad, így újratöltés után
     // azonnal ott van az órarend a kiválasztásokkal együtt.
     try {
@@ -127,6 +132,11 @@ function App() {
     }
   }, []);
 
+  const selectTab = (id) => {
+    setTab(id);
+    localStorage.setItem(KEY_TAB, id);
+  };
+
   return (
     <>
       <Header />
@@ -137,14 +147,52 @@ function App() {
         </div>
       )}
 
-      <QueryForm
-        name={name}
-        semester={semester}
-        setName={setName}
-        setSemester={setSemester}
-        fetchData={fetchData}
-        loading={loading}
-      />
+      <div className="tabs" role="tablist" aria-label="Lekérdezés módja">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            id={`tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls={`panel-${t.id}`}
+            className={`tab${tab === t.id ? " tab--active" : ""}`}
+            onClick={() => selectTab(t.id)}
+          >
+            {t.label}
+            {t.id === "codes" && codes.length > 0 && (
+              <span className="tab__count">{codes.length}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div
+        role="tabpanel"
+        id={`panel-${tab}`}
+        aria-labelledby={`tab-${tab}`}
+      >
+        {tab === "codes" ? (
+          <QueryForm
+            name={name}
+            semester={semester}
+            semesters={SEMESTERS}
+            setName={setName}
+            setSemester={setSemester}
+            fetchData={fetchData}
+            loading={loading}
+          />
+        ) : (
+          <NameSearch
+            semester={semester}
+            setSemester={setSemester}
+            semesters={SEMESTERS}
+            codes={codes}
+            addCodes={addCodes}
+            fetchData={fetchData}
+            loading={loading}
+          />
+        )}
+      </div>
 
       <section className="card">
         <h2>Órarend</h2>
