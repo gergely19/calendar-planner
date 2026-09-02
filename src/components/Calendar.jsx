@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import WeekGrid from "./WeekGrid";
-import { parseKodok, groupOfCode } from "../lib/tanrend";
+import { parseKodok, groupOfCode, sameCode } from "../lib/tanrend";
 import "../indexstyle.css";
 
 let errors = window.errors || {};
@@ -367,10 +367,31 @@ const Calendar = ({ courses, errorCodes, groups }) => {
     });
   }, [courses, groups, allEvents, hidden]);
 
-  const sortedErrorCodes = useMemo(
-    () => [...errorCodes].sort((a, b) => a.localeCompare(b, "hu")),
-    [errorCodes]
-  );
+  // Tárgycsoportban elég, ha a csoport egyik kódjára van meghirdetés: a többi
+  // kód üres találata ilyenkor nem hiba, ezért nem is soroljuk fel.
+  const { sortedErrorCodes, coveredByGroup } = useMemo(() => {
+    const loadedCodes = new Set(
+      courses.map((c) => (parseKodok(c.kodok).targykod || "").toLowerCase())
+    );
+
+    const covered = [];
+    const missing = [];
+
+    errorCodes.forEach((code) => {
+      const group = groupOfCode(groups, code);
+      const groupHasCourses =
+        group &&
+        group.codes.some(
+          (c) => !sameCode(c, code) && loadedCodes.has(c.toLowerCase())
+        );
+      (groupHasCourses ? covered : missing).push(code);
+    });
+
+    return {
+      sortedErrorCodes: missing.sort((a, b) => a.localeCompare(b, "hu")),
+      coveredByGroup: covered.length,
+    };
+  }, [errorCodes, groups, courses]);
 
   return (
     <div>
@@ -495,6 +516,14 @@ const Calendar = ({ courses, errorCodes, groups }) => {
               ))}
             </div>
           </div>
+        )}
+
+        {coveredByGroup > 0 && (
+          <p className="card__hint">
+            További {coveredByGroup} kódra nincs meghirdetés, de a
+            tárgycsoportjukban másik kód meghozta a kurzusokat, ezért ez nem
+            hiba.
+          </p>
         )}
       </div>
     </div>
