@@ -1,95 +1,74 @@
-import React, { useState } from "react";
-import { splitCodes, joinCodes, mergeCodes } from "../lib/tanrend";
+import React from "react";
+import CodeTagInput from "./CodeTagInput";
+import {
+  splitCodes,
+  joinCodes,
+  mergeCodes,
+  groupOfCode,
+  sameCode,
+} from "../lib/tanrend";
+
+function newGroupId() {
+  return `csoport-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 export default function QueryForm({
   name,
   semester,
   semesters,
+  groups,
+  autoSameName,
   setName,
+  setGroups,
+  setAutoSameName,
   setSemester,
   fetchData,
   loading,
 }) {
-  const [draft, setDraft] = useState("");
-  // a szerkesztés alatt álló kód helye a listában (-1 = nincs szerkesztés)
-  const [editIndex, setEditIndex] = useState(-1);
-  const [editValue, setEditValue] = useState("");
-
   const codes = splitCodes(name);
+  const ungrouped = codes.filter((code) => !groupOfCode(groups, code));
 
   const save = (list) => setName(joinCodes(list));
 
-  // Egyszerre több kód is beilleszthető (pontosvessző, vessző, sortörés mentén)
-  const addCodes = (text) => {
-    const incoming = text
-      .split(/[;,\n\t]+/)
-      .map((c) => c.trim())
-      .filter(Boolean);
-    if (incoming.length === 0) return;
-    save(mergeCodes(codes, incoming));
+  // A lekérdezés a teljes kódlistából megy, a csoportok csak azt írják le,
+  // mely kódok tartoznak ugyanahhoz a tárgyhoz. Ezért minden változásnál a
+  // kikerült kódokat kivesszük, az újakat pedig hozzáfűzzük a listához.
+  const applyCodes = (before, after) => {
+    const removed = before.filter((code) => !after.some((c) => sameCode(c, code)));
+    const kept = codes.filter((code) => !removed.some((r) => sameCode(r, code)));
+    save(mergeCodes(kept, after));
   };
 
-  const removeCode = (index) => save(codes.filter((_, i) => i !== index));
+  const saveGroups = (list) => setGroups(list);
 
-  const commitDraft = () => {
-    if (!draft.trim()) return false;
-    addCodes(draft);
-    setDraft("");
-    return true;
+  const addGroup = () =>
+    saveGroups([...groups, { id: newGroupId(), label: "", codes: [] }]);
+
+  const renameGroup = (id, label) =>
+    saveGroups(groups.map((g) => (g.id === id ? { ...g, label } : g)));
+
+  const changeGroupCodes = (id, next) => {
+    const target = groups.find((g) => g.id === id);
+    if (!target) return;
+
+    const nextGroups = groups.map((group) => {
+      if (group.id === id) return { ...group, codes: next };
+      // egy kód csak egy csoportban lehet
+      return {
+        ...group,
+        codes: group.codes.filter((c) => !next.some((n) => sameCode(n, c))),
+      };
+    });
+
+    saveGroups(nextGroups);
+    applyCodes(target.codes, next);
   };
 
-  const onKeyDown = (e) => {
-    if (e.key === "Enter" || e.key === ";" || e.key === ",") {
-      e.preventDefault();
-      if (!commitDraft() && e.key === "Enter" && !loading && codes.length > 0) {
-        fetchData();
-      }
-    } else if (e.key === "Backspace" && !draft && codes.length > 0) {
-      removeCode(codes.length - 1);
-    }
-  };
+  // Szétbontáskor a kódok megmaradnak a lekérdezésben, csak külön tárgyak lesznek.
+  const dissolveGroup = (id) => saveGroups(groups.filter((g) => g.id !== id));
 
-  // ----- meglévő kód szerkesztése -----
-
-  const startEdit = (index) => {
-    setEditIndex(index);
-    setEditValue(codes[index]);
-  };
-
-  const cancelEdit = () => {
-    setEditIndex(-1);
-    setEditValue("");
-  };
-
-  const commitEdit = () => {
-    if (editIndex < 0) return;
-    const value = editValue.trim();
-    const next = [...codes];
-
-    if (!value) {
-      // kiürített kód: ez törlést jelent
-      next.splice(editIndex, 1);
-    } else {
-      next[editIndex] = value;
-      // ha a kód már máshol is szerepel, csak egy példány marad
-      const duplicate = next.findIndex(
-        (c, i) => i !== editIndex && c.toLowerCase() === value.toLowerCase()
-      );
-      if (duplicate !== -1) next.splice(duplicate, 1);
-    }
-
-    save(next);
-    cancelEdit();
-  };
-
-  const onEditKeyDown = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      commitEdit();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      cancelEdit();
-    }
+  const submitIfPossible = () => {
+    if (!loading && codes.length > 0) fetchData();
   };
 
   return (
@@ -103,66 +82,19 @@ export default function QueryForm({
       <div className="form-grid">
         <div className="field">
           <label htmlFor="name">Tantárgykódok</label>
-          <div className="tag-input">
-            {codes.map((code, i) =>
-              editIndex === i ? (
-                <span className="tag tag--editing" key={`edit-${i}`}>
-                  <input
-                    type="text"
-                    className="tag__edit"
-                    value={editValue}
-                    size={Math.max(editValue.length + 1, 8)}
-                    autoFocus
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={onEditKeyDown}
-                    onBlur={commitEdit}
-                    aria-label={`${code} szerkesztése`}
-                  />
-                </span>
-              ) : (
-                <span className="tag" key={`${code}-${i}`}>
-                  <button
-                    type="button"
-                    className="tag__text"
-                    onClick={() => startEdit(i)}
-                    disabled={loading}
-                    title="Kattints a kód szerkesztéséhez"
-                  >
-                    {code}
-                  </button>
-                  <button
-                    type="button"
-                    className="tag__remove"
-                    onClick={() => removeCode(i)}
-                    disabled={loading}
-                    aria-label={`${code} eltávolítása`}
-                    title="Kód eltávolítása"
-                  >
-                    ×
-                  </button>
-                </span>
-              )
-            )}
-            <input
-              type="text"
-              id="name"
-              placeholder={codes.length ? "További kód…" : "pl. IPM-22fpiIFE"}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={onKeyDown}
-              onBlur={commitDraft}
-              onPaste={(e) => {
-                const text = e.clipboardData.getData("text");
-                if (/[;,\n\t]/.test(text)) {
-                  e.preventDefault();
-                  addCodes(text);
-                }
-              }}
-            />
-          </div>
+          <CodeTagInput
+            codes={ungrouped}
+            onChange={(next) => applyCodes(ungrouped, next)}
+            inputId="name"
+            placeholder="További kód…"
+            emptyPlaceholder="pl. IPM-22fpiIFE"
+            disabled={loading}
+            onEnterEmpty={submitIfPossible}
+          />
           <small>
             Enterrel adod hozzá, a kódra kattintva szerkesztheted, az × -szel
-            törölsz egyet. Jelenleg {codes.length} kód.
+            törölsz egyet. Összesen {codes.length} kód
+            {groups.length > 0 && `, ebből ${codes.length - ungrouped.length} csoportban`}.
           </small>
           <small className="example">
             Több kódot egyszerre is beilleszthetsz, például:{" "}
@@ -184,6 +116,77 @@ export default function QueryForm({
             ))}
           </select>
           <small>Csak ennek a félévnek a kurzusai jelennek meg.</small>
+        </div>
+      </div>
+
+      <label className="option-row">
+        <input
+          type="checkbox"
+          checked={autoSameName}
+          onChange={(e) => setAutoSameName(e.target.checked)}
+          disabled={loading}
+        />
+        <span>
+          <strong>Azonos nevű kurzusok automatikus behozása.</strong> A
+          lekérdezés után megkeresi a tanrendben a pontosan ugyanilyen nevű
+          kurzusokat, és azokat is betölti – így nem kell kézzel felvenned a
+          többi kódot. Kicsit hosszabb lekérdezés.
+        </span>
+      </label>
+
+      <div className="field code-groups">
+        <label>Tárgycsoportok</label>
+        <small>
+          Ha ugyanazt a tárgyat több kódon is meghirdették, és csak az egyik
+          kurzust kell felvenni, tedd a kódokat egy csoportba. A naptárban egy
+          tárgyként jelennek meg: ha kiválasztod az egyik kurzust, a csoport
+          összes többi lehetősége eltűnik.
+        </small>
+
+        {groups.map((group) => (
+          <div className="code-group" key={group.id}>
+            <input
+              type="text"
+              className="code-group__label"
+              value={group.label}
+              placeholder="A tárgy neve (nem kötelező, üresen a tanrendből veszi)"
+              onChange={(e) => renameGroup(group.id, e.target.value)}
+              disabled={loading}
+              aria-label="A tárgycsoport neve"
+            />
+            <CodeTagInput
+              codes={group.codes}
+              onChange={(next) => changeGroupCodes(group.id, next)}
+              placeholder="További kód a csoportba…"
+              emptyPlaceholder="ide illeszd be a tárgy kódjait"
+              disabled={loading}
+            />
+            <div className="code-group__actions">
+              <small>
+                {group.codes.length} kód – ebből egy kurzust kell felvenni.
+              </small>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => dissolveGroup(group.id)}
+                disabled={loading}
+                title="A kódok megmaradnak, de külön tárgyak lesznek"
+              >
+                Csoport szétbontása
+              </button>
+            </div>
+          </div>
+        ))}
+
+        <div>
+          <button
+            type="button"
+            className="secondary"
+            onClick={addGroup}
+            disabled={loading}
+          >
+            + Új tárgycsoport
+          </button>
         </div>
       </div>
 

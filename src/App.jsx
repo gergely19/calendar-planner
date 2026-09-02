@@ -5,15 +5,20 @@ import NameSearch from "./components/NameSearch";
 import Calendar from "./components/Calendar";
 import {
   SEMESTERS,
+  KEY_GROUPS,
   tanrendUrl,
   parseCoursesFromHtml,
+  parseKodok,
   splitCodes,
   joinCodes,
   mergeCodes,
+  readGroups,
+  sameName,
 } from "./lib/tanrend";
 import "./indexstyle.css";
 
 const KEY_TAB = "activeTab";
+const KEY_AUTO_SAME_NAME = "autoSameName";
 
 const TABS = [
   { id: "codes", label: "Tárgykódok" },
@@ -33,10 +38,27 @@ function App() {
   //IP-18cVSZG; IP-24KVSZPDMEG; IP-18KVIBDAG; IP-18cSZÁMEA2E; IP-18cAB2G; IP-18KVSZPREG; IP-18MIAE; IP-18KPROGEG; IP-18KVPYEG; IP-18cAB2E; IP-18KVELE; IP-18KVSZBGTE; IP-18KVIFSWPROGG; IP-18cSZÁMEA2G
   const [semester, setSemester] = useState("2026-2027-1");
 
+  // Tárgycsoportok: egy tárgy több kódon is meghirdetve, egy kurzussal.
+  const [groups, setGroups] = useState([]);
+
+  // Lekérdezéskor a pontosan ugyanilyen nevű kurzusok automatikus behozása.
+  const [autoSameName, setAutoSameName] = useState(true);
+  const [extraCodes, setExtraCodes] = useState([]);
+
   const codes = splitCodes(name);
 
   // A névkeresés fülről ide kerülnek be a talált tárgykódok.
   const addCodes = (incoming) => setName(joinCodes(mergeCodes(codes, incoming)));
+
+  const updateGroups = (next) => {
+    setGroups(next);
+    localStorage.setItem(KEY_GROUPS, JSON.stringify(next));
+  };
+
+  const updateAutoSameName = (value) => {
+    setAutoSameName(value);
+    localStorage.setItem(KEY_AUTO_SAME_NAME, String(value));
+  };
 
   const fetchData = async () => {
     if (!name.trim()) {
@@ -95,13 +117,78 @@ function App() {
         eta: Math.max(0, Math.round((avgMs * (codes.length - done)) / 1000)),
       });
     }
+
+    // 2. fázis: a megtalált tárgyak pontosan ugyanilyen nevű kurzusai. Ugyanazt
+    // a tárgyat több kódon is meghirdethetik, ezeket nem kell kézzel felvenni.
+    let extraCodes = [];
+    if (autoSameName && allCourses.length > 0) {
+      const known = new Set(codes.map((c) => c.toLowerCase()));
+      const names = [
+        ...new Set(
+          allCourses
+            .map((c) => (c.tantargy || "").trim())
+            .filter((n) => n.length >= 4)
+        ),
+      ];
+      const seen = new Set(
+        allCourses.map((c) => `${c.kodok}|${c.idopont}`)
+      );
+      const found = new Set();
+
+      setProgress({
+        done,
+        total: codes.length + names.length,
+        eta: null,
+        phase: "names",
+      });
+
+      for (const courseName of names) {
+        try {
+          const response = await fetch(
+            tanrendUrl("keresnevre", courseName, semester)
+          );
+          if (response.ok) {
+            const rows = parseCoursesFromHtml(await response.text());
+            rows.forEach((row) => {
+              if (!sameName(row.tantargy, courseName)) return;
+
+              const { targykod } = parseKodok(row.kodok);
+              if (!targykod || known.has(targykod.toLowerCase())) return;
+
+              const rowId = `${row.kodok}|${row.idopont}`;
+              if (seen.has(rowId)) return;
+
+              seen.add(rowId);
+              found.add(targykod);
+              allCourses = allCourses.concat(row);
+            });
+          }
+        } catch (err) {
+          console.error("Névegyeztetési hiba:", err);
+        }
+
+        done++;
+        const avgMs = (performance.now() - startedAt) / done;
+        const total = codes.length + names.length;
+        setProgress({
+          done,
+          total,
+          eta: Math.max(0, Math.round((avgMs * (total - done)) / 1000)),
+          phase: "names",
+        });
+      }
+
+      extraCodes = [...found].sort((a, b) => a.localeCompare(b, "hu"));
+    }
+
     localStorage.setItem(
       "coursesCache",
-      JSON.stringify({ semester, courses: allCourses, errorCodes })
+      JSON.stringify({ semester, courses: allCourses, errorCodes, extraCodes })
     );
 
     setCourses(allCourses);
     setErrorCodes(errorCodes);
+    setExtraCodes(extraCodes);
     setHasQueried(true);
     setLoading(false);
   };
@@ -117,6 +204,11 @@ function App() {
       setTab(savedTab);
     }
 
+    setGroups(readGroups());
+
+    const savedAuto = localStorage.getItem(KEY_AUTO_SAME_NAME);
+    if (savedAuto !== null) setAutoSameName(savedAuto === "true");
+
     // Az utolsó lekérdezés eredménye is megmarad, így újratöltés után
     // azonnal ott van az órarend a kiválasztásokkal együtt.
     try {
@@ -125,6 +217,7 @@ function App() {
         if (cache.semester) setSemester(cache.semester);
         setCourses(cache.courses);
         setErrorCodes(Array.isArray(cache.errorCodes) ? cache.errorCodes : []);
+        setExtraCodes(Array.isArray(cache.extraCodes) ? cache.extraCodes : []);
         setHasQueried(true);
       }
     } catch {
@@ -176,7 +269,11 @@ function App() {
             name={name}
             semester={semester}
             semesters={SEMESTERS}
+            groups={groups}
+            autoSameName={autoSameName}
             setName={setName}
+            setGroups={updateGroups}
+            setAutoSameName={updateAutoSameName}
             setSemester={setSemester}
             fetchData={fetchData}
             loading={loading}
@@ -194,6 +291,15 @@ function App() {
         )}
       </div>
 
+      {extraCodes.length > 0 && (
+        <div className="notice">
+          Az azonos nevű meghirdetések miatt {extraCodes.length} további
+          tárgykód kurzusai is bekerültek:{" "}
+          <strong>{extraCodes.join(", ")}</strong>. Ezek a naptárban ugyanannál
+          a tárgynál jelennek meg, tehát elég közülük egy kurzust választani.
+        </div>
+      )}
+
       <section className="card">
         <h2>Órarend</h2>
         <p className="card__hint">
@@ -207,15 +313,19 @@ function App() {
           </div>
         )}
 
-        <Calendar courses={courses} errorCodes={errorCodes} />
+        <Calendar courses={courses} errorCodes={errorCodes} groups={groups} />
       </section>
 
       {loading && (
         <div className="overlay" role="status" aria-live="polite">
           <div className="overlay__box">
-            <h2>Kurzusok betöltése</h2>
+            <h2>
+              {progress.phase === "names"
+                ? "Azonos nevű kurzusok keresése"
+                : "Kurzusok betöltése"}
+            </h2>
             <p>
-              {progress.done} / {progress.total} kód
+              {progress.done} / {progress.total} lekérdezés
             </p>
             <p>
               {progress.eta === null

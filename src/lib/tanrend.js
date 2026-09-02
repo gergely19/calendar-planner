@@ -99,3 +99,56 @@ export function mergeCodes(list, incoming) {
 export function hasCode(list, code) {
   return list.some((c) => c.toLowerCase() === (code || "").toLowerCase());
 }
+
+export function sameCode(a, b) {
+  return (a || "").toLowerCase() === (b || "").toLowerCase();
+}
+
+// Két kurzusnév akkor számít egyezőnek, ha a szövegük a szóközök és a
+// kis/nagybetűk figyelmen kívül hagyásával azonos. Az ékezetek itt számítanak,
+// mert csak a tényleg ugyanolyan nevű tárgyakat akarjuk összehúzni.
+export function sameName(a, b) {
+  const clean = (text) => (text || "").replace(/\s+/g, " ").trim().toLowerCase();
+  return clean(a) === clean(b) && clean(a).length > 0;
+}
+
+// ----- tárgycsoportok -----
+// Egy tárgyat több kódon is meghirdethetnek (pl. szakonként külön kód), és
+// ezekből csak egy kurzust kell felvenni. Az egy csoportba tett kódok ezért a
+// naptárban egyetlen tárgyként viselkednek.
+
+export const KEY_GROUPS = "codeGroups";
+
+export function normalizeGroups(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((group, i) => ({
+    id: typeof group?.id === "string" && group.id ? group.id : `csoport-${i}`,
+    label: typeof group?.label === "string" ? group.label : "",
+    codes: Array.isArray(group?.codes)
+      ? group.codes
+          .filter((c) => typeof c === "string" && c.trim())
+          .map((c) => c.trim())
+      : [],
+  }));
+}
+
+export function readGroups() {
+  try {
+    return normalizeGroups(JSON.parse(localStorage.getItem(KEY_GROUPS)));
+  } catch {
+    return [];
+  }
+}
+
+export function groupOfCode(groups, code) {
+  if (!code) return null;
+  return (
+    (groups || []).find((group) =>
+      group.codes.some((c) => sameCode(c, code))
+    ) || null
+  );
+}
+
+export function groupCodes(groups) {
+  return (groups || []).flatMap((group) => group.codes);
+}

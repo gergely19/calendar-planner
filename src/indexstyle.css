@@ -681,3 +681,87 @@ button.secondary:hover:not(:disabled) {
   font-family: Consolas, "Courier New", monospace;
   font-size: 0.78rem;
 }
+
+/* Tárgycsoportok */
+
+.code-groups {
+  margin-top: 18px;
+  gap: 8px;
+}
+
+.code-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fafbfc;
+}
+
+.code-group__label {
+  font-weight: 600;
+}
+
+.code-group__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.code-group__actions button {
+  padding: 5px 11px;
+  font-size: 0.82rem;
+}
+
+/* Jelölőmezős beállítássor */
+
+.option-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fafbfc;
+  font-size: 0.84rem;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
+.option-row input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 1px 0 0;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  display: grid;
+  place-content: center;
+  background: #fff;
+  border: 1px solid #c0c6cb;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.option-row input[type="checkbox"]:checked {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+.option-row input[type="checkbox"]:checked::after {
+  content: "";
+  width: 9px;
+  height: 5px;
+  margin-top: -2px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg);
+}
+
+.option-row strong {
+  color: var(--text);
+}

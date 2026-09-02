@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { parseKodok } from "../lib/tanrend";
+import { parseKodok, groupOfCode } from "../lib/tanrend";
 import "../indexstyle.css";
 
 let errors = window.errors || {};
@@ -29,8 +29,28 @@ function readJson(key, fallback) {
   }
 }
 
-function courseKey(tantargy, kurzuskod) {
-  return `${tantargy}#${kurzuskod}`;
+function courseKey(tantargy, kurzusId) {
+  return `${tantargy}#${kurzusId}`;
+}
+
+// Egy kurzus azonosítója. Tárgycsoportnál több tárgykód kurzusai kerülnek egy
+// tárgy alá, ott a puszta kurzuskód (#1) már nem lenne egyedi.
+function courseId(targykod, kurzuskod) {
+  return targykod ? `${targykod}-${kurzuskod}` : String(kurzuskod);
+}
+
+// A korábbi mentések csak a kurzuskódot tárolták, ezért mindkét alakot elfogadjuk.
+function matchesCourse(stored, tags) {
+  if (stored === undefined || stored === null) return false;
+  const value = String(stored);
+  return value === String(tags.kurzusId) || value === String(tags.kurzuskod);
+}
+
+function hiddenKeysFor(tags) {
+  return [
+    courseKey(tags.tantargy, tags.kurzusId),
+    courseKey(tags.tantargy, tags.kurzuskod),
+  ];
 }
 
 // A korábbi verzió teljes esemény-objektumokat tárolt, az újabb csak kulcsokat.
@@ -150,7 +170,53 @@ function getDay(dayStr) {
   return window.DayPilot.Date.today().firstDayOfWeek().addDays(i);
 }
 
-function processCourses(courses) {
+// Csoportonként egyetlen tárgynév kell, hogy az alternatív kódok kurzusai egy
+// tárgy alá kerüljenek. Ha a felhasználó nem adott nevet, a tanrendből vesszük
+// a legrövidebb (legáltalánosabb) kurzusnevet.
+function groupLabels(courses, groups) {
+  const labels = {};
+
+  (groups || []).forEach((group) => {
+    if (group.label.trim()) {
+      labels[group.id] = group.label.trim();
+      return;
+    }
+
+    const names = courses
+      .filter((item) => {
+        const { targykod } = parseKodok(item.kodok);
+        return group.codes.some(
+          (c) => c.toLowerCase() === (targykod || "").toLowerCase()
+        );
+      })
+      .map((item) => item.tantargy)
+      .filter(Boolean)
+      .sort((a, b) => a.length - b.length);
+
+    labels[group.id] = names[0] || group.codes[0] || "Tárgycsoport";
+  });
+
+  return labels;
+}
+
+// Egy tanrendsor értelmezése: melyik tárgyhoz tartozik és mi az azonosítója.
+function describeCourse(item, groups, labels) {
+  const parsed = parseKodok(item.kodok);
+  const isEa = isEloadasCourse(item, parsed);
+  const group = groupOfCode(groups, parsed.targykod);
+  const baseName = group ? labels[group.id] : item.tantargy;
+
+  return {
+    parsed,
+    isEa,
+    group,
+    tantargy: courseLabel(baseName, isEa),
+    kurzusId: courseId(parsed.targykod, parsed.kurzuskod),
+  };
+}
+
+function processCourses(courses, groups) {
+  const labels = groupLabels(courses, groups);
   const colorNameMapping = readJson(KEY_COLORS, {});
   let colorsChanged = false;
   function getColorForName(name) {
@@ -164,8 +230,11 @@ function processCourses(courses) {
   const events = [];
 
   courses.forEach((item) => {
-    const parsed = parseKodok(item.kodok);
-    const isEa = isEloadasCourse(item, parsed);
+    const { parsed, group, tantargy: tantargyName, kurzusId } = describeCourse(
+      item,
+      groups,
+      labels
+    );
     const kurzuskod = parsed.kurzuskod;
     const targykod = parsed.targykod;
 
@@ -177,7 +246,6 @@ function processCourses(courses) {
     }
 
     const slots = parseTimeSlots(item.idopont);
-    const tantargyName = courseLabel(item.tantargy, isEa);
     const color = getColorForName(tantargyName);
 
     slots.forEach((slot) => {
@@ -194,6 +262,8 @@ function processCourses(courses) {
           tantargy: tantargyName,
           kurzuskod: kurzuskod,
           targykod: targykod,
+          kurzusId: kurzusId,
+          grouped: !!group,
         },
       });
     });
@@ -206,7 +276,7 @@ function processCourses(courses) {
   return events;
 }
 
-const Calendar = ({ courses, errorCodes }) => {
+const Calendar = ({ courses, errorCodes, groups }) => {
   const dpRef = useRef(null);
 
   useEffect(() => {
@@ -251,18 +321,24 @@ const Calendar = ({ courses, errorCodes }) => {
       args.header.cssClass = "hourheader";
     };
 
-    const allEvents = processCourses(courses);
+    const allEvents = processCourses(courses, groups);
     const selected = readJson(KEY_SELECTED, {});
 
     dp.onBeforeEventRender = function (args) {
       const t = args.data.tags;
       if (!t) return;
 
-      const isSelected = selected[t.tantargy] === t.kurzuskod;
+      const isSelected = matchesCourse(selected[t.tantargy], t);
       if (isSelected) {
         args.data.backColor = args.data.barColor;
         args.data.cssClass = "event-selected";
       }
+
+      // Csoportba tett tárgynál a tárgykód is kell, mert több kód kurzusai
+      // futnak egy név alatt.
+      const second = t["grouped"]
+        ? `${t["targykod"]} · ${t["tanar"] || "oktató nincs megadva"}`
+        : t["tanar"] || "oktató nincs megadva";
 
       args.data.html =
         "<div>#" +
@@ -271,7 +347,7 @@ const Calendar = ({ courses, errorCodes }) => {
         escapeHtml(t["tantargy"]) +
         "</div>" +
         '<div style="font-size:11px;opacity:.75;margin-top:1px">' +
-        escapeHtml(t["tanar"] || "oktató nincs megadva") +
+        escapeHtml(second) +
         "</div>";
 
       args.data.bubbleHtml =
@@ -296,10 +372,11 @@ const Calendar = ({ courses, errorCodes }) => {
     const renderEvents = () => {
       const hidden = readHidden();
       dp.events.list = allEvents.filter((e) => {
-        const key = courseKey(e.tags.tantargy, e.tags.kurzuskod);
-        if (hidden.includes(key)) return false;
+        if (hiddenKeysFor(e.tags).some((key) => hidden.includes(key))) {
+          return false;
+        }
         const pick = selected[e.tags.tantargy];
-        return pick === undefined || pick === e.tags.kurzuskod;
+        return pick === undefined || matchesCourse(pick, e.tags);
       });
       if (initialized) dp.update(); // init() előtt még nem lehet frissíteni
     };
@@ -308,10 +385,10 @@ const Calendar = ({ courses, errorCodes }) => {
       const t = args.e.data.tags;
       if (!t) return;
 
-      if (selected[t.tantargy] === t.kurzuskod) {
+      if (matchesCourse(selected[t.tantargy], t)) {
         delete selected[t.tantargy]; // kiválasztás visszavonása
       } else {
-        selected[t.tantargy] = t.kurzuskod;
+        selected[t.tantargy] = t.kurzusId;
       }
       localStorage.setItem(KEY_SELECTED, JSON.stringify(selected));
       renderEvents();
@@ -334,7 +411,11 @@ const Calendar = ({ courses, errorCodes }) => {
           if (!grouped[e.tags.tantargy]) {
             grouped[e.tags.tantargy] = [];
           }
-          if (!grouped[e.tags.tantargy].some((item) => item.tags.kurzuskod === e.tags.kurzuskod)) {
+          if (
+            !grouped[e.tags.tantargy].some(
+              (item) => item.tags.kurzusId === e.tags.kurzusId
+            )
+          ) {
             grouped[e.tags.tantargy].push(e);
           }
         });
@@ -365,16 +446,22 @@ const Calendar = ({ courses, errorCodes }) => {
           }
 
           lista.forEach((event) => {
-            const key = courseKey(event.tags.tantargy, event.tags.kurzuskod);
-            const isSelected = selected[event.tags.tantargy] === event.tags.kurzuskod;
+            const keys = hiddenKeysFor(event.tags);
+            const key = keys[0];
+            const isSelected = matchesCourse(
+              selected[event.tags.tantargy],
+              event.tags
+            );
 
             const wrapper = document.createElement("label");
             wrapper.className = "course-option";
 
             const checkbox = document.createElement("input");
             checkbox.type = "checkbox";
-            checkbox.value = event.tags.kurzuskod;
-            checkbox.checked = isSelected || !readHidden().includes(key);
+            checkbox.value = event.tags.kurzusId;
+            checkbox.checked =
+              isSelected ||
+              !readHidden().some((hiddenKey) => keys.includes(hiddenKey));
             wrapper.classList.toggle("course-option--off", !checkbox.checked);
 
             // A naptárban kiválasztott kurzust itt nem lehet kikapcsolni,
@@ -390,7 +477,7 @@ const Calendar = ({ courses, errorCodes }) => {
               wrapper.classList.toggle("course-option--off", !checkbox.checked);
               const hidden = readHidden();
               if (checkbox.checked) {
-                writeHidden(hidden.filter((k) => k !== key));
+                writeHidden(hidden.filter((k) => !keys.includes(k)));
               } else if (!hidden.includes(key)) {
                 writeHidden([...hidden, key]);
               }
@@ -446,15 +533,15 @@ const Calendar = ({ courses, errorCodes }) => {
     if (unscheduledDiv) {
       unscheduledDiv.innerHTML = "";
 
+      const labels = groupLabels(courses, groups);
       const scheduledSet = new Set(
-        allEvents.map((e) => courseKey(e.tags.tantargy, e.tags.kurzuskod))
+        allEvents.map((e) => courseKey(e.tags.tantargy, e.tags.kurzusId))
       );
       const hidden = readHidden();
 
       const unscheduled = courses.filter((c) => {
-        const parsed = parseKodok(c.kodok);
-        const isEa = isEloadasCourse(c, parsed);
-        const key = courseKey(courseLabel(c.tantargy, isEa), parsed.kurzuskod);
+        const info = describeCourse(c, groups, labels);
+        const key = courseKey(info.tantargy, info.kurzusId);
         return !scheduledSet.has(key) && !hidden.includes(key);
       });
 
@@ -494,7 +581,7 @@ const Calendar = ({ courses, errorCodes }) => {
         dpRef.current = null;
       }
     };
-  }, [courses]);
+  }, [courses, groups]);
 
   useEffect(() => {
     const errorCodesDiv = document.getElementById("errorCodes");
